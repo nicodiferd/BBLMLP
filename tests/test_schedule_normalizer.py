@@ -10,7 +10,7 @@ def test_normalize_returns_game_rows_with_required_keys():
     rows = normalize_schedule(RAW, season=2024)
     assert len(rows) == len(RAW)
     required = {
-        "game_pk", "season", "game_date", "home_team", "away_team",
+        "game_pk", "season", "game_type", "game_date", "home_team", "away_team",
         "home_team_id", "away_team_id", "status", "home_score",
         "away_score", "home_win",
     }

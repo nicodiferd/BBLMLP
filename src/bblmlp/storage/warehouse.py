@@ -9,6 +9,7 @@ GAMES_DDL = """
 CREATE TABLE IF NOT EXISTS games (
     game_pk BIGINT PRIMARY KEY,
     season INTEGER NOT NULL,
+    game_type VARCHAR,
     game_date DATE NOT NULL,
     game_datetime TIMESTAMP,
     home_team VARCHAR NOT NULL,
@@ -43,7 +44,7 @@ CREATE TABLE IF NOT EXISTS statcast_pitches (
 """
 
 _GAME_COLUMNS = [
-    "game_pk", "season", "game_date", "game_datetime", "home_team", "away_team",
+    "game_pk", "season", "game_type", "game_date", "game_datetime", "home_team", "away_team",
     "home_team_id", "away_team_id", "home_probable_pitcher", "away_probable_pitcher",
     "venue", "status", "home_score", "away_score", "home_win",
 ]

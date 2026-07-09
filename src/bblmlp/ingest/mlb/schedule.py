@@ -32,6 +32,9 @@ def normalize_schedule(raw_games: list[dict], season: int) -> list[dict]:
             {
                 "game_pk": int(raw["game_id"]),
                 "season": season,
+                "game_type": raw.get("game_type"),
+                # game_date is the authoritative day-level key (game_datetime is
+                # UTC and tz-naive once stored).
                 "game_date": _game_date(raw),
                 "game_datetime": raw.get("game_datetime"),
                 "home_team": raw.get("home_name"),

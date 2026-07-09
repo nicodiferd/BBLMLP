@@ -39,3 +39,13 @@ def test_write_statcast_appends_rows(tmp_path):
     assert n == 2
     total = con.execute("SELECT COUNT(*) FROM statcast_pitches").fetchone()[0]
     assert total == 2
+
+
+def test_write_statcast_is_idempotent(tmp_path):
+    con = connect(tmp_path / "w.duckdb")
+    init_schema(con)
+    out = normalize_statcast(_raw_df(), season=2024)
+    write_statcast(con, out)
+    write_statcast(con, out)  # same season again
+    total = con.execute("SELECT COUNT(*) FROM statcast_pitches").fetchone()[0]
+    assert total == 2  # replaced per season, not doubled

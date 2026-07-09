@@ -23,10 +23,29 @@ def normalize_statcast(df: pd.DataFrame, season: int) -> pd.DataFrame:
 def write_statcast(con, df: pd.DataFrame) -> int:
     if df.empty:
         return 0
-    con.register("df_statcast", df)
+    # Idempotent at season granularity (the `ingest statcast --season` command
+    # writes one full season per call): replace any existing rows for the
+    # season(s) in this frame instead of appending duplicates.
+    seasons = [int(s) for s in df["season"].unique()]
     cols = ", ".join(df.columns)
-    con.execute(f"INSERT INTO statcast_pitches ({cols}) SELECT {cols} FROM df_statcast")
-    con.unregister("df_statcast")
+    con.register("df_statcast", df)
+    try:
+        con.execute("BEGIN TRANSACTION")
+        try:
+            placeholders = ", ".join(["?"] * len(seasons))
+            con.execute(
+                f"DELETE FROM statcast_pitches WHERE season IN ({placeholders})",
+                seasons,
+            )
+            con.execute(
+                f"INSERT INTO statcast_pitches ({cols}) SELECT {cols} FROM df_statcast"
+            )
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
+    finally:
+        con.unregister("df_statcast")
     return len(df)
 
 
