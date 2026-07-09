@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 
+# Official StatsAPI statuses that mean the game is complete with a real result.
+DECIDED_STATUSES = frozenset({"Final", "Completed Early"})
+
+
 def compute_home_win(home_score, away_score, status) -> int | None:
-    if status != "Final" or home_score is None or away_score is None:
+    if status not in DECIDED_STATUSES or home_score is None or away_score is None:
         return None
     if home_score == away_score:
         return None

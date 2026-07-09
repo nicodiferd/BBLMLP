@@ -29,3 +29,23 @@ def test_compute_home_win_unplayed_or_tie_is_none():
     assert compute_home_win(None, None, "Scheduled") is None
     assert compute_home_win(4, 4, "Final") is None  # tie => undecided
     assert compute_home_win(5, 3, "Scheduled") is None
+
+
+def test_compute_home_win_completed_early_counts():
+    assert compute_home_win(12, 3, "Completed Early") == 1
+    assert compute_home_win(3, 12, "Completed Early") == 0
+
+
+def test_normalizer_labels_completed_early_game():
+    early = [g for g in RAW if g.get("status") == "Completed Early"]
+    assert early, "fixture should contain a Completed Early game"
+    rows = normalize_schedule(RAW, season=2024)
+    by_pk = {r["game_pk"]: r for r in rows}
+    for g in early:
+        row = by_pk[int(g["game_id"])]
+        if g["home_score"] == g["away_score"]:
+            expected = None
+        else:
+            expected = 1 if g["home_score"] > g["away_score"] else 0
+        assert row["home_win"] == expected
+        assert row["home_win"] is not None  # a decided game must be labeled
