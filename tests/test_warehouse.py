@@ -1,3 +1,5 @@
+import pytest
+
 from bblmlp.storage import connect, init_schema, table_names, upsert_games
 
 
@@ -34,3 +36,16 @@ def test_upsert_games_replaces_on_conflict(tmp_path):
     upsert_games(con, [_game(1, home_win=1)])       # later: final
     val = con.execute("SELECT home_win FROM games WHERE game_pk = 1").fetchone()[0]
     assert val == 1
+
+
+def test_upsert_failure_rolls_back_and_connection_stays_usable(tmp_path):
+    con = connect(tmp_path / "w.duckdb")
+    init_schema(con)
+    bad = _game(1)
+    bad["season"] = None  # violates NOT NULL on season -> aborts the batch
+    with pytest.raises(Exception):
+        upsert_games(con, [bad])
+    # the connection must remain usable for subsequent valid writes
+    upsert_games(con, [_game(2, home_win=1)])
+    count = con.execute("SELECT COUNT(*) FROM games").fetchone()[0]
+    assert count == 1  # bad batch rolled back (0), then one good row

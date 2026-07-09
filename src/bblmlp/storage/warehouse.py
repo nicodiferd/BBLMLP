@@ -73,9 +73,13 @@ def upsert_games(con: duckdb.DuckDBPyConnection, rows: list[dict]) -> int:
     placeholders = ", ".join(["?"] * len(_GAME_COLUMNS))
     cols = ", ".join(_GAME_COLUMNS)
     con.execute("BEGIN TRANSACTION")
-    con.executemany(
-        f"INSERT OR REPLACE INTO games ({cols}) VALUES ({placeholders})",
-        [[r.get(c) for c in _GAME_COLUMNS] for r in rows],
-    )
-    con.execute("COMMIT")
+    try:
+        con.executemany(
+            f"INSERT OR REPLACE INTO games ({cols}) VALUES ({placeholders})",
+            [[r.get(c) for c in _GAME_COLUMNS] for r in rows],
+        )
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
     return len(rows)
