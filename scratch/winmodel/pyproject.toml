@@ -1,0 +1,29 @@
+[project]
+name = "winmodel"
+version = "0.1.0"
+description = "Standalone MLB game-winner model library: Elo baseline, walk-forward evaluation, calibrated LightGBM"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.26",
+    "scikit-learn>=1.4",
+    "lightgbm>=4.3",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/winmodel"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Import winmodel from src directly: on this machine something (iCloud/uv
+# cache hardlinks) keeps re-setting the macOS UF_HIDDEN flag on the venv's
+# .pth files, and CPython >=3.11 silently skips hidden .pth files, breaking
+# the editable install. This keeps tests runnable regardless.
+pythonpath = ["src"]

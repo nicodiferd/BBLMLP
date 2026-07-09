@@ -21,3 +21,6 @@ venv/
 
 # OS
 .DS_Store
+
+# Superpowers SDD scratch (progress ledger)
+.superpowers/
