@@ -64,5 +64,26 @@ def ingest_mlb(
     typer.echo(f"Ingested {written} games for {target}")
 
 
+@ingest_app.command("statcast")
+def ingest_statcast(season: int = typer.Option(..., "--season")) -> None:
+    """Backfill a season of Statcast pitch data."""
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.mlb.statcast import (
+        fetch_statcast_season,
+        normalize_statcast,
+        write_statcast,
+    )
+    from bblmlp.storage import connect, init_schema
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    raw = fetch_statcast_season(season)
+    out = normalize_statcast(raw, season=season)
+    n = write_statcast(con, out)
+    con.close()
+    typer.echo(f"Wrote {n} statcast rows for {season}")
+
+
 if __name__ == "__main__":
     app()
