@@ -1,0 +1,4 @@
+data:
+  warehouse_path: /tmp/bblmlp_test.duckdb
+  snapshot_dir: /tmp/bblmlp_snaps
+  backfill_seasons: [2024, 2025]

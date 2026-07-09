@@ -1,0 +1,4 @@
+data:
+  warehouse_path: data/warehouse.duckdb
+  snapshot_dir: data/kalshi_snapshots
+  backfill_seasons: [2021, 2022, 2023, 2024, 2025]
