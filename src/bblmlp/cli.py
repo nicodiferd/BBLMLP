@@ -14,5 +14,18 @@ def version() -> None:
     typer.echo(__version__)
 
 
+@app.command("init-db")
+def init_db() -> None:
+    """Create the DuckDB warehouse and its tables."""
+    from bblmlp.config import load_settings
+    from bblmlp.storage import connect, init_schema
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    con.close()
+    typer.echo(f"Initialized warehouse at {settings.data.warehouse_path}")
+
+
 if __name__ == "__main__":
     app()
