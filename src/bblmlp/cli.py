@@ -31,23 +31,34 @@ def init_db() -> None:
 def ingest_mlb(
     live: bool = typer.Option(False, "--live", help="Ingest today's schedule."),
     date: str = typer.Option(None, "--date", help="Ingest a single date (YYYY-MM-DD)."),
+    backfill: bool = typer.Option(
+        False, "--backfill", help="Backfill all seasons in settings."
+    ),
 ) -> None:
     """Ingest MLB games into the warehouse."""
     import datetime as _dt
 
     from bblmlp.config import load_settings
-    from bblmlp.ingest.mlb.ingest import ingest_range
+    from bblmlp.ingest.mlb.ingest import ingest_range, ingest_seasons
     from bblmlp.ingest.mlb.statsapi_client import fetch_schedule
     from bblmlp.storage import connect, init_schema
 
-    target = date or (_dt.date.today().isoformat() if live else None)
-    if target is None:
-        raise typer.BadParameter("Provide --live or --date YYYY-MM-DD")
-
-    season = int(target[:4])
     settings = load_settings()
     con = connect(settings.data.warehouse_path)
     init_schema(con)
+
+    if backfill:
+        written = ingest_seasons(con, fetch_schedule, settings.data.backfill_seasons)
+        con.close()
+        typer.echo(f"Backfilled {written} games across {settings.data.backfill_seasons}")
+        return
+
+    target = date or (_dt.date.today().isoformat() if live else None)
+    if target is None:
+        con.close()
+        raise typer.BadParameter("Provide --live, --date YYYY-MM-DD, or --backfill")
+
+    season = int(target[:4])
     written = ingest_range(con, fetch_schedule, target, target, season)
     con.close()
     typer.echo(f"Ingested {written} games for {target}")
