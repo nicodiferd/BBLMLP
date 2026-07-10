@@ -20,8 +20,8 @@ def resolve_player_id(players: pd.DataFrame, name_first: str, name_last: str,
     m = players[(players["name_first"].str.casefold() == name_first.casefold())
                 & (players["name_last"].str.casefold() == name_last.casefold())]
     if active_year is not None and len(m) > 1:
-        m = m[(players["mlb_played_first"] <= active_year)
-              & (players["mlb_played_last"] >= active_year)]
+        m = m[(m["mlb_played_first"] <= active_year)
+              & (m["mlb_played_last"] >= active_year)]
     if len(m) == 1:
         return int(m["key_mlbam"].iloc[0])
     return None
