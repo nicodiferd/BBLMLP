@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS games (
     away_team_id INTEGER,
     home_probable_pitcher VARCHAR,
     away_probable_pitcher VARCHAR,
+    home_probable_pitcher_id INTEGER,
+    away_probable_pitcher_id INTEGER,
     venue VARCHAR,
     status VARCHAR,
     home_score INTEGER,
@@ -112,6 +114,7 @@ CREATE TABLE IF NOT EXISTS player_ids (
 _GAME_COLUMNS = [
     "game_pk", "season", "game_type", "game_date", "game_datetime", "home_team", "away_team",
     "home_team_id", "away_team_id", "home_probable_pitcher", "away_probable_pitcher",
+    "home_probable_pitcher_id", "away_probable_pitcher_id",
     "venue", "status", "home_score", "away_score", "home_win",
 ]
 

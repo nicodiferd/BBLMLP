@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pandas as pd
+
 from bblmlp.ingest.mlb.schedule import compute_home_win, normalize_schedule
 
 RAW = json.loads(Path("tests/fixtures/statsapi_schedule.json").read_text())
@@ -49,3 +51,25 @@ def test_normalizer_labels_completed_early_game():
             expected = 1 if g["home_score"] > g["away_score"] else 0
         assert row["home_win"] == expected
         assert row["home_win"] is not None  # a decided game must be labeled
+
+
+def test_probable_pitcher_ids_resolved_when_players_supplied():
+    players = pd.DataFrame({
+        "key_mlbam": [111], "name_first": ["Ryan"], "name_last": ["Feltner"],
+        "mlb_played_first": [2021], "mlb_played_last": [2026],
+        "key_fangraphs":[1],"key_bbref":["x"],"key_retro":["y"],
+    })
+    raw = [{"game_id": 5, "game_date": "2024-05-01", "home_name": "SF",
+            "away_name": "COL", "status": "Final", "home_score": 3, "away_score": 1,
+            "home_probable_pitcher": "Ryan Feltner", "away_probable_pitcher": ""}]
+    rows = normalize_schedule(raw, season=2024, players=players)
+    assert rows[0]["home_probable_pitcher_id"] == 111
+    assert rows[0]["away_probable_pitcher_id"] is None
+
+
+def test_probable_pitcher_ids_null_without_players():
+    raw = [{"game_id": 5, "game_date": "2024-05-01", "home_name": "SF",
+            "away_name": "COL", "status": "Final", "home_score": 3, "away_score": 1,
+            "home_probable_pitcher": "Ryan Feltner"}]
+    rows = normalize_schedule(raw, season=2024)
+    assert rows[0]["home_probable_pitcher_id"] is None

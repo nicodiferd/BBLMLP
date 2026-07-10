@@ -22,7 +22,18 @@ def _game_date(raw: dict) -> str:
     return dt[:10]
 
 
-def normalize_schedule(raw_games: list[dict], season: int) -> list[dict]:
+def _resolve(players, full_name, season):
+    if players is None or not full_name:
+        return None
+    parts = full_name.strip().split(" ", 1)
+    if len(parts) != 2:
+        return None
+    from bblmlp.ingest.mlb.players import resolve_player_id
+
+    return resolve_player_id(players, parts[0], parts[1], active_year=season)
+
+
+def normalize_schedule(raw_games: list[dict], season: int, players=None) -> list[dict]:
     rows: list[dict] = []
     for raw in raw_games:
         home_score = raw.get("home_score")
@@ -43,6 +54,12 @@ def normalize_schedule(raw_games: list[dict], season: int) -> list[dict]:
                 "away_team_id": raw.get("away_id"),
                 "home_probable_pitcher": raw.get("home_probable_pitcher") or None,
                 "away_probable_pitcher": raw.get("away_probable_pitcher") or None,
+                "home_probable_pitcher_id": _resolve(
+                    players, raw.get("home_probable_pitcher") or "", season
+                ),
+                "away_probable_pitcher_id": _resolve(
+                    players, raw.get("away_probable_pitcher") or "", season
+                ),
                 "venue": raw.get("venue_name"),
                 "status": status,
                 "home_score": home_score,
