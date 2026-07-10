@@ -198,19 +198,25 @@ def table_names(con: duckdb.DuckDBPyConnection) -> set[str]:
     return {r[0] for r in rows}
 
 
+def _q(ident: str) -> str:
+    """Quote a SQL identifier so reserved words (e.g. DuckDB's `positional`) and
+    special characters in wide external schemas (FanGraphs) are safe to interpolate."""
+    return '"' + str(ident).replace('"', '""') + '"'
+
+
 def replace_partition(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFrame, part_col: str) -> int:
     """Delete all rows whose part_col value appears in df, then insert df. Idempotent."""
     if df is None or len(df) == 0:
         return 0
     parts = list(dict.fromkeys(df[part_col].tolist()))
-    cols = ", ".join(df.columns)
+    cols = ", ".join(_q(c) for c in df.columns)
     con.register("_df_repl", df)
     try:
         con.execute("BEGIN TRANSACTION")
         try:
             ph = ", ".join(["?"] * len(parts))
-            con.execute(f"DELETE FROM {table} WHERE {part_col} IN ({ph})", parts)
-            con.execute(f"INSERT INTO {table} ({cols}) SELECT {cols} FROM _df_repl")
+            con.execute(f"DELETE FROM {_q(table)} WHERE {_q(part_col)} IN ({ph})", parts)
+            con.execute(f"INSERT INTO {_q(table)} ({cols}) SELECT {cols} FROM _df_repl")
             con.execute("COMMIT")
         except Exception:
             con.execute("ROLLBACK")
@@ -228,7 +234,7 @@ def ensure_table_from_df(con: duckdb.DuckDBPyConnection, table: str, df: pd.Data
     from the first normalized DataFrame it sees.
     """
     con.register("_tmpl", df)
-    con.execute(f"CREATE TABLE IF NOT EXISTS {table} AS SELECT * FROM _tmpl LIMIT 0")
+    con.execute(f"CREATE TABLE IF NOT EXISTS {_q(table)} AS SELECT * FROM _tmpl LIMIT 0")
     con.unregister("_tmpl")
 
 
@@ -236,13 +242,13 @@ def replace_all(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFrame) ->
     """Truncate table and insert df. Idempotent (full replace)."""
     if df is None or len(df) == 0:
         return 0
-    cols = ", ".join(df.columns)
+    cols = ", ".join(_q(c) for c in df.columns)
     con.register("_df_all", df)
     try:
         con.execute("BEGIN TRANSACTION")
         try:
-            con.execute(f"DELETE FROM {table}")
-            con.execute(f"INSERT INTO {table} ({cols}) SELECT {cols} FROM _df_all")
+            con.execute(f"DELETE FROM {_q(table)}")
+            con.execute(f"INSERT INTO {_q(table)} ({cols}) SELECT {cols} FROM _df_all")
             con.execute("COMMIT")
         except Exception:
             con.execute("ROLLBACK")

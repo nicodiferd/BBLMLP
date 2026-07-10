@@ -29,6 +29,20 @@ def test_init_schema_creates_tables(tmp_path):
     assert {"games", "statcast_pitches"}.issubset(table_names(con))
 
 
+def test_writers_quote_reserved_word_columns():
+    # FanGraphs' wide schema includes columns that snake to SQL reserved words
+    # (e.g. `positional`, `order`); the writers must quote identifiers.
+    import pandas as pd
+
+    con = duckdb.connect(":memory:")
+    df = pd.DataFrame({"season": [2024], "positional": [1.5], "order": [2], "war": [3.1]})
+    ensure_table_from_df(con, "fg", df)
+    assert replace_partition(con, "fg", df, "season") == 1
+    assert replace_partition(con, "fg", df, "season") == 1  # idempotent rerun
+    assert con.execute("SELECT count(*) FROM fg").fetchone()[0] == 1
+    assert replace_all(con, "fg", df) == 1
+
+
 def test_upsert_games_is_idempotent(tmp_path):
     con = connect(tmp_path / "w.duckdb")
     init_schema(con)
