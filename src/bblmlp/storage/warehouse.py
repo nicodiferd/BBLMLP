@@ -68,6 +68,48 @@ def table_names(con: duckdb.DuckDBPyConnection) -> set[str]:
     return {r[0] for r in rows}
 
 
+def replace_partition(con: duckdb.DuckDBPyConnection, table: str, df, part_col: str) -> int:
+    """Delete all rows whose part_col value appears in df, then insert df. Idempotent."""
+    if df is None or len(df) == 0:
+        return 0
+    parts = list(dict.fromkeys(df[part_col].tolist()))
+    cols = ", ".join(df.columns)
+    con.register("_df_repl", df)
+    try:
+        con.execute("BEGIN TRANSACTION")
+        try:
+            ph = ", ".join(["?"] * len(parts))
+            con.execute(f"DELETE FROM {table} WHERE {part_col} IN ({ph})", parts)
+            con.execute(f"INSERT INTO {table} ({cols}) SELECT {cols} FROM _df_repl")
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
+    finally:
+        con.unregister("_df_repl")
+    return len(df)
+
+
+def replace_all(con: duckdb.DuckDBPyConnection, table: str, df) -> int:
+    """Truncate table and insert df. Idempotent (full replace)."""
+    if df is None or len(df) == 0:
+        return 0
+    cols = ", ".join(df.columns)
+    con.register("_df_all", df)
+    try:
+        con.execute("BEGIN TRANSACTION")
+        try:
+            con.execute(f"DELETE FROM {table}")
+            con.execute(f"INSERT INTO {table} ({cols}) SELECT {cols} FROM _df_all")
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
+    finally:
+        con.unregister("_df_all")
+    return len(df)
+
+
 def upsert_games(con: duckdb.DuckDBPyConnection, rows: list[dict]) -> int:
     if not rows:
         return 0

@@ -1,6 +1,7 @@
+import duckdb
 import pytest
 
-from bblmlp.storage import connect, init_schema, table_names, upsert_games
+from bblmlp.storage import connect, init_schema, replace_all, replace_partition, table_names, upsert_games
 
 
 def _game(pk: int, home_win: int | None = None) -> dict:
@@ -49,3 +50,36 @@ def test_upsert_failure_rolls_back_and_connection_stays_usable(tmp_path):
     upsert_games(con, [_game(2, home_win=1)])
     count = con.execute("SELECT COUNT(*) FROM games").fetchone()[0]
     assert count == 1  # bad batch rolled back (0), then one good row
+
+
+def _mk(con):
+    con.execute("CREATE TABLE t (season INTEGER, v INTEGER)")
+
+
+def test_replace_partition_is_idempotent():
+    con = duckdb.connect(":memory:")
+    _mk(con)
+    import pandas as pd
+    df = pd.DataFrame({"season": [2024, 2024], "v": [1, 2]})
+    assert replace_partition(con, "t", df, "season") == 2
+    assert replace_partition(con, "t", df, "season") == 2  # rerun
+    assert con.execute("SELECT count(*) FROM t").fetchone()[0] == 2  # no dupes
+    assert con.execute("SELECT count(*) FROM t WHERE season=2023").fetchone()[0] == 0
+
+
+def test_replace_partition_leaves_other_partitions():
+    con = duckdb.connect(":memory:")
+    _mk(con)
+    import pandas as pd
+    replace_partition(con, "t", pd.DataFrame({"season":[2023],"v":[9]}), "season")
+    replace_partition(con, "t", pd.DataFrame({"season":[2024],"v":[1]}), "season")
+    assert con.execute("SELECT count(*) FROM t").fetchone()[0] == 2
+
+
+def test_replace_all_truncates():
+    con = duckdb.connect(":memory:")
+    con.execute("CREATE TABLE p (id INTEGER)")
+    import pandas as pd
+    replace_all(con, "p", pd.DataFrame({"id":[1,2,3]}))
+    replace_all(con, "p", pd.DataFrame({"id":[9]}))
+    assert con.execute("SELECT count(*) FROM p").fetchone()[0] == 1
