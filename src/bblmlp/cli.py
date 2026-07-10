@@ -3,7 +3,9 @@ import typer
 
 app = typer.Typer(help="Baseball ML prediction for Kalshi single-game markets.")
 ingest_app = typer.Typer(help="Ingest data into the warehouse.")
+build_app = typer.Typer(help="Build derived tables from ingested data.")
 app.add_typer(ingest_app, name="ingest")
+app.add_typer(build_app, name="build")
 
 
 @app.command()
@@ -149,6 +151,25 @@ def ingest_players() -> None:
     n = replace_all(con, "player_ids", normalize_players(fetch_chadwick()))
     con.close()
     typer.echo(f"Loaded {n} players")
+
+
+@build_app.command("rollups")
+def build_rollups(season: int = typer.Option(..., "--season")) -> None:
+    """Compute Statcast-derived pitcher/team game rollups for a season."""
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.mlb.rollups import pitcher_game_stats, team_game_stats
+    from bblmlp.storage import connect, init_schema, replace_partition
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    pitches = con.execute(
+        "SELECT * FROM statcast_pitches WHERE season = ?", [season]
+    ).df()
+    pitcher_rows = replace_partition(con, "pitcher_game_stats", pitcher_game_stats(pitches), "season")
+    team_rows = replace_partition(con, "team_game_stats", team_game_stats(pitches), "season")
+    con.close()
+    typer.echo(f"Wrote {pitcher_rows} pitcher-game rows and {team_rows} team-game rows for {season}")
 
 
 if __name__ == "__main__":
