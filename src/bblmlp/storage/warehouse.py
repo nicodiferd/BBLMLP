@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import duckdb
+import pandas as pd
 
 GAMES_DDL = """
 CREATE TABLE IF NOT EXISTS games (
@@ -68,7 +69,7 @@ def table_names(con: duckdb.DuckDBPyConnection) -> set[str]:
     return {r[0] for r in rows}
 
 
-def replace_partition(con: duckdb.DuckDBPyConnection, table: str, df, part_col: str) -> int:
+def replace_partition(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFrame, part_col: str) -> int:
     """Delete all rows whose part_col value appears in df, then insert df. Idempotent."""
     if df is None or len(df) == 0:
         return 0
@@ -90,7 +91,7 @@ def replace_partition(con: duckdb.DuckDBPyConnection, table: str, df, part_col: 
     return len(df)
 
 
-def replace_all(con: duckdb.DuckDBPyConnection, table: str, df) -> int:
+def replace_all(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFrame) -> int:
     """Truncate table and insert df. Idempotent (full replace)."""
     if df is None or len(df) == 0:
         return 0
