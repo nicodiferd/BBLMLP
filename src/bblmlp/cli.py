@@ -138,6 +138,27 @@ def ingest_standings(season: int = typer.Option(..., "--season")) -> None:
     typer.echo(f"Wrote {n} standings rows for {season}")
 
 
+@ingest_app.command("live")
+def ingest_live(
+    date: str = typer.Option(None, "--date", help="Date to ingest (YYYY-MM-DD); defaults to today."),
+) -> None:
+    """Ingest today's live lineups/probables into the warehouse."""
+    import datetime as _dt
+
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.mlb.live import fetch_today_games, normalize_live_lineups
+    from bblmlp.storage import connect, init_schema, replace_partition
+
+    target = date or _dt.date.today().isoformat()
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    df = normalize_live_lineups(fetch_today_games(target), game_date=target)
+    n = replace_partition(con, "live_lineups", df, "game_date")
+    con.close()
+    typer.echo(f"Wrote {n} live lineup rows for {target}")
+
+
 @ingest_app.command("players")
 def ingest_players() -> None:
     """Refresh the Chadwick player-id crosswalk."""
