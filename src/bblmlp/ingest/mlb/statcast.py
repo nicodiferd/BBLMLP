@@ -3,10 +3,29 @@ from __future__ import annotations
 
 import pandas as pd
 
+from bblmlp.storage import replace_partition
+
 STATCAST_COLUMNS = [
-    "game_pk", "game_date", "season", "pitcher", "batter", "events",
-    "description", "pitch_type", "release_speed",
-    "estimated_woba_using_speedangle", "at_bat_number", "pitch_number",
+    # identity & context
+    "game_pk", "game_date", "season", "game_type", "home_team", "away_team",
+    "inning", "inning_topbot", "at_bat_number", "pitch_number",
+    "pitcher", "batter", "player_name", "p_throws", "stand",
+    # pitch
+    "pitch_type", "pitch_name", "release_speed", "effective_speed",
+    "release_spin_rate", "spin_axis", "release_pos_x", "release_pos_z",
+    "release_extension", "pfx_x", "pfx_z", "plate_x", "plate_z", "zone",
+    "type", "description", "sz_top", "sz_bot",
+    # count / state
+    "balls", "strikes", "outs_when_up", "on_1b", "on_2b", "on_3b",
+    # outcome
+    "events", "bb_type", "hit_location", "launch_speed", "launch_angle",
+    "hit_distance_sc", "launch_speed_angle",
+    # value
+    "estimated_woba_using_speedangle", "estimated_ba_using_speedangle",
+    "woba_value", "woba_denom", "babip_value", "iso_value",
+    "delta_run_exp", "delta_home_win_exp",
+    # score state
+    "bat_score", "fld_score", "home_score", "away_score",
 ]
 
 
@@ -21,32 +40,10 @@ def normalize_statcast(df: pd.DataFrame, season: int) -> pd.DataFrame:
 
 
 def write_statcast(con, df: pd.DataFrame) -> int:
-    if df.empty:
-        return 0
     # Idempotent at season granularity (the `ingest statcast --season` command
     # writes one full season per call): replace any existing rows for the
     # season(s) in this frame instead of appending duplicates.
-    seasons = [int(s) for s in df["season"].unique()]
-    cols = ", ".join(df.columns)
-    con.register("df_statcast", df)
-    try:
-        con.execute("BEGIN TRANSACTION")
-        try:
-            placeholders = ", ".join(["?"] * len(seasons))
-            con.execute(
-                f"DELETE FROM statcast_pitches WHERE season IN ({placeholders})",
-                seasons,
-            )
-            con.execute(
-                f"INSERT INTO statcast_pitches ({cols}) SELECT {cols} FROM df_statcast"
-            )
-            con.execute("COMMIT")
-        except Exception:
-            con.execute("ROLLBACK")
-            raise
-    finally:
-        con.unregister("df_statcast")
-    return len(df)
+    return replace_partition(con, "statcast_pitches", df, "season")
 
 
 def fetch_statcast_season(season: int) -> pd.DataFrame:

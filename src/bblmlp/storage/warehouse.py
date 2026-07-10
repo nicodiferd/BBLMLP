@@ -29,18 +29,70 @@ CREATE TABLE IF NOT EXISTS games (
 
 STATCAST_DDL = """
 CREATE TABLE IF NOT EXISTS statcast_pitches (
+    -- identity & context
     game_pk BIGINT,
     game_date DATE,
     season INTEGER,
+    game_type VARCHAR,
+    home_team VARCHAR,
+    away_team VARCHAR,
+    inning INTEGER,
+    inning_topbot VARCHAR,
+    at_bat_number INTEGER,
+    pitch_number INTEGER,
     pitcher INTEGER,
     batter INTEGER,
-    events VARCHAR,
-    description VARCHAR,
+    player_name VARCHAR,
+    p_throws VARCHAR,
+    stand VARCHAR,
+    -- pitch
     pitch_type VARCHAR,
+    pitch_name VARCHAR,
     release_speed DOUBLE,
+    effective_speed DOUBLE,
+    release_spin_rate DOUBLE,
+    spin_axis DOUBLE,
+    release_pos_x DOUBLE,
+    release_pos_z DOUBLE,
+    release_extension DOUBLE,
+    pfx_x DOUBLE,
+    pfx_z DOUBLE,
+    plate_x DOUBLE,
+    plate_z DOUBLE,
+    zone DOUBLE,
+    type VARCHAR,
+    description VARCHAR,
+    sz_top DOUBLE,
+    sz_bot DOUBLE,
+    -- count / state
+    balls INTEGER,
+    strikes INTEGER,
+    outs_when_up INTEGER,
+    on_1b DOUBLE,
+    on_2b DOUBLE,
+    on_3b DOUBLE,
+    -- outcome
+    events VARCHAR,
+    bb_type VARCHAR,
+    hit_location DOUBLE,
+    launch_speed DOUBLE,
+    launch_angle DOUBLE,
+    hit_distance_sc DOUBLE,
+    launch_speed_angle DOUBLE,
+    -- value
     estimated_woba_using_speedangle DOUBLE,
-    at_bat_number INTEGER,
-    pitch_number INTEGER
+    estimated_ba_using_speedangle DOUBLE,
+    woba_value DOUBLE,
+    woba_denom DOUBLE,
+    babip_value DOUBLE,
+    iso_value DOUBLE,
+    delta_run_exp DOUBLE,
+    delta_home_win_exp DOUBLE,
+    -- score state
+    bat_score INTEGER,
+    fld_score INTEGER,
+    home_score INTEGER,
+    away_score INTEGER
 );
 """
 

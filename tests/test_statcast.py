@@ -49,3 +49,22 @@ def test_write_statcast_is_idempotent(tmp_path):
     write_statcast(con, out)  # same season again
     total = con.execute("SELECT COUNT(*) FROM statcast_pitches").fetchone()[0]
     assert total == 2  # replaced per season, not doubled
+
+
+def test_normalize_keeps_handedness_count_and_value_columns():
+    raw = pd.DataFrame({
+        "game_pk": [1], "game_date": ["2024-04-01"], "pitcher": [111], "batter": [222],
+        "events": ["strikeout"], "description": ["swinging_strike"], "pitch_type": ["FF"],
+        "release_speed": [95.1], "estimated_woba_using_speedangle": [0.20],
+        "at_bat_number": [1], "pitch_number": [3],
+        "stand": ["R"], "p_throws": ["L"], "balls": [1], "strikes": [2],
+        "launch_speed": [88.0], "launch_angle": [12.0], "woba_value": [0.0],
+        "delta_run_exp": [-0.1], "inning": [1], "inning_topbot": ["Top"],
+        "home_team": ["SF"], "away_team": ["COL"],
+    })
+    out = normalize_statcast(raw, season=2024)
+    for col in ["stand", "p_throws", "balls", "strikes", "launch_speed",
+                "delta_run_exp", "inning_topbot", "home_team", "season"]:
+        assert col in out.columns
+    assert out["season"].iloc[0] == 2024
+    assert out["game_pk"].dtype == "int64"
