@@ -160,6 +160,18 @@ def replace_partition(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFra
     return len(df)
 
 
+def ensure_table_from_df(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFrame) -> None:
+    """Create `table` from df's schema if it doesn't exist yet (no rows copied).
+
+    Used for wide, year-varying FanGraphs frames where a fixed DDL in
+    `init_schema` would be brittle; the writer creates the table on demand
+    from the first normalized DataFrame it sees.
+    """
+    con.register("_tmpl", df)
+    con.execute(f"CREATE TABLE IF NOT EXISTS {table} AS SELECT * FROM _tmpl LIMIT 0")
+    con.unregister("_tmpl")
+
+
 def replace_all(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFrame) -> int:
     """Truncate table and insert df. Idempotent (full replace)."""
     if df is None or len(df) == 0:

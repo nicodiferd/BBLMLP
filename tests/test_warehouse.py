@@ -1,7 +1,15 @@
 import duckdb
 import pytest
 
-from bblmlp.storage import connect, init_schema, replace_all, replace_partition, table_names, upsert_games
+from bblmlp.storage import (
+    connect,
+    ensure_table_from_df,
+    init_schema,
+    replace_all,
+    replace_partition,
+    table_names,
+    upsert_games,
+)
 
 
 def _game(pk: int, home_win: int | None = None) -> dict:
@@ -83,3 +91,24 @@ def test_replace_all_truncates():
     replace_all(con, "p", pd.DataFrame({"id":[1,2,3]}))
     replace_all(con, "p", pd.DataFrame({"id":[9]}))
     assert con.execute("SELECT count(*) FROM p").fetchone()[0] == 1
+
+
+def test_ensure_table_from_df_creates_empty_table_matching_schema():
+    con = duckdb.connect(":memory:")
+    import pandas as pd
+    df = pd.DataFrame({"season": [2024], "team": ["SFG"], "wrc_plus": [105]})
+    ensure_table_from_df(con, "fg_team_batting", df)
+    assert "fg_team_batting" in table_names(con)
+    assert con.execute("SELECT count(*) FROM fg_team_batting").fetchone()[0] == 0
+    cols = [r[0] for r in con.execute("DESCRIBE fg_team_batting").fetchall()]
+    assert cols == ["season", "team", "wrc_plus"]
+
+
+def test_ensure_table_from_df_is_a_noop_if_table_already_exists():
+    con = duckdb.connect(":memory:")
+    import pandas as pd
+    df = pd.DataFrame({"season": [2024], "v": [1]})
+    ensure_table_from_df(con, "t2", df)
+    replace_partition(con, "t2", df, "season")
+    ensure_table_from_df(con, "t2", df)  # should not wipe existing rows
+    assert con.execute("SELECT count(*) FROM t2").fetchone()[0] == 1

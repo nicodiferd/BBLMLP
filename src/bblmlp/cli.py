@@ -85,6 +85,35 @@ def ingest_statcast(season: int = typer.Option(..., "--season")) -> None:
     typer.echo(f"Wrote {n} statcast rows for {season}")
 
 
+@ingest_app.command("fangraphs")
+def ingest_fangraphs(season: int = typer.Option(..., "--season")) -> None:
+    """Backfill a season of FanGraphs season tables (team; players in a later task)."""
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.mlb.fangraphs import (
+        fetch_team_batting,
+        fetch_team_pitching,
+        normalize_team_batting,
+        normalize_team_pitching,
+    )
+    from bblmlp.storage import connect, ensure_table_from_df, init_schema, replace_partition
+
+    # (table_name, fetch_fn, normalize_fn) — Task 6 appends the player tables here.
+    specs = [
+        ("fangraphs_team_batting", fetch_team_batting, normalize_team_batting),
+        ("fangraphs_team_pitching", fetch_team_pitching, normalize_team_pitching),
+    ]
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    for table, fetch, normalize in specs:
+        df = normalize(fetch(season), season=season)
+        ensure_table_from_df(con, table, df)
+        n = replace_partition(con, table, df, "season")
+        typer.echo(f"Wrote {n} rows to {table} for {season}")
+    con.close()
+
+
 @ingest_app.command("players")
 def ingest_players() -> None:
     """Refresh the Chadwick player-id crosswalk."""

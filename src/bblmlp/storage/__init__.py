@@ -1,5 +1,6 @@
 from bblmlp.storage.warehouse import (
     connect,
+    ensure_table_from_df,
     init_schema,
     replace_all,
     replace_partition,
@@ -9,6 +10,7 @@ from bblmlp.storage.warehouse import (
 
 __all__ = [
     "connect",
+    "ensure_table_from_df",
     "init_schema",
     "replace_all",
     "replace_partition",
