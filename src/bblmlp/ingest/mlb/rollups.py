@@ -38,7 +38,7 @@ def pitcher_game_stats(pitches: pd.DataFrame) -> pd.DataFrame:
     out["bb"] = bb
     out["whiffs"] = whiff
     out[["k", "bb", "whiffs"]] = out[["k", "bb", "whiffs"]].fillna(0).astype(int)
-    out["csw_pct"] = out["whiffs"] / out["pitches"]
+    out["swstr_pct"] = out["whiffs"] / out["pitches"]
     out = out.reset_index()
     # starter = pitcher of the minimum at_bat_number faced by each fielding side
     first_ab = df.sort_values("at_bat_number").groupby(["game_pk", "fld_team"]).first().reset_index()

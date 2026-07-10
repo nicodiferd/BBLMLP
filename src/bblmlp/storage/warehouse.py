@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS pitcher_game_stats (
     k INTEGER,
     bb INTEGER,
     whiffs INTEGER,
-    csw_pct DOUBLE,
+    swstr_pct DOUBLE,
     is_starter BOOLEAN
 );
 """

@@ -193,6 +193,7 @@ def ingest_all_cmd(
             "statcast": fetch_statcast_season,
             "fangraphs": FANGRAPHS_SPECS,
             "standings": fetch_standings,
+            "rollups": True,
         }
         run_settings = settings
     else:

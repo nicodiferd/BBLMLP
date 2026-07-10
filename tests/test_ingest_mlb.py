@@ -66,3 +66,41 @@ def test_ingest_all_runs_sources_in_order_with_injected_fetchers(tmp_path):
     assert counts["players"] == 1
     assert counts["games"] >= 1
     assert con.execute("SELECT count(*) FROM games").fetchone()[0] >= 1
+
+
+def test_ingest_all_runs_rollups_when_statcast_and_rollups_keys_present(tmp_path):
+    con = connect(tmp_path / "wh.duckdb"); init_schema(con)
+    import pandas as pd
+
+    def fake_statcast(season):
+        return pd.DataFrame({
+            "game_pk": [1, 1, 1, 1],
+            "season": [season] * 4,
+            "inning_topbot": ["Top", "Top", "Bot", "Bot"],
+            "home_team": ["SF"] * 4, "away_team": ["COL"] * 4,
+            "pitcher": [500, 500, 900, 900],
+            "batter": [10, 11, 20, 21],
+            "at_bat_number": [1, 2, 3, 4],
+            "pitch_number": [1, 1, 1, 1],
+            "events": ["strikeout", "walk", "single", "field_out"],
+            "description": ["swinging_strike", "ball", "hit_into_play", "hit_into_play"],
+            "estimated_woba_using_speedangle": [0.0, 0.0, 0.9, 0.1],
+            "release_speed": [95, 96, 93, 92],
+        })
+
+    fetchers = {
+        "chadwick": lambda: pd.DataFrame({"key_mlbam":[111],"key_fangraphs":[11],
+            "key_bbref":["a"],"key_retro":["r"],"name_first":["Ryan"],
+            "name_last":["Feltner"],"mlb_played_first":[2021],"mlb_played_last":[2026]}),
+        "schedule": lambda s, e: [{"game_id":1,"game_date":f"{s[:4]}-05-01","home_name":"SF",
+            "away_name":"COL","status":"Final","home_score":3,"away_score":1}],
+        "statcast": fake_statcast,
+        "rollups": True,
+    }
+    class S:  # minimal settings stub
+        class data: warehouse_path=str(tmp_path/"wh.duckdb"); backfill_seasons=[2024]
+
+    counts = ingest_all(con, S, fetchers=fetchers)
+    assert counts["rollups"] >= 1
+    assert con.execute("SELECT count(*) FROM pitcher_game_stats").fetchone()[0] >= 1
+    assert con.execute("SELECT count(*) FROM team_game_stats").fetchone()[0] >= 1
