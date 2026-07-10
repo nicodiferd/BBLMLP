@@ -7,8 +7,15 @@ import pandas as pd
 
 
 def _snake(name: str) -> str:
-    name = name.replace("+", "_plus").replace("%", "_pct").replace("/", "_per_")
+    name = (
+        name.replace("+", "_plus")
+        .replace("%", "_pct")
+        .replace("/", "_per_")
+        .replace("-", "_minus")
+    )
     name = re.sub(r"[^0-9a-zA-Z]+", "_", name).strip("_").lower()
+    if name and name[0].isdigit():
+        name = f"_{name}"
     return name
 
 
