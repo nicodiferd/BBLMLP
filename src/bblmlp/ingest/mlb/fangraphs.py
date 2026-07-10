@@ -46,3 +46,32 @@ def fetch_team_pitching(season: int) -> pd.DataFrame:
     from pybaseball import team_pitching
 
     return team_pitching(season)
+
+
+def _tidy_players(df: pd.DataFrame, season: int) -> pd.DataFrame:
+    out = _tidy(df, season)  # snake_case + season
+    if "idfg" in out.columns:
+        out = out.rename(columns={"idfg": "key_fangraphs"})
+    return out
+
+
+def normalize_pitcher_stats(df: pd.DataFrame, season: int) -> pd.DataFrame:
+    return _tidy_players(df, season)
+
+
+def normalize_batter_stats(df: pd.DataFrame, season: int) -> pd.DataFrame:
+    return _tidy_players(df, season)
+
+
+def fetch_pitching_stats(season: int) -> pd.DataFrame:
+    """Network call: pull individual pitcher season stats via pybaseball."""
+    from pybaseball import pitching_stats
+
+    return pitching_stats(season, season)
+
+
+def fetch_batting_stats(season: int) -> pd.DataFrame:
+    """Network call: pull individual batter season stats via pybaseball."""
+    from pybaseball import batting_stats
+
+    return batting_stats(season, season)

@@ -87,20 +87,26 @@ def ingest_statcast(season: int = typer.Option(..., "--season")) -> None:
 
 @ingest_app.command("fangraphs")
 def ingest_fangraphs(season: int = typer.Option(..., "--season")) -> None:
-    """Backfill a season of FanGraphs season tables (team; players in a later task)."""
+    """Backfill a season of FanGraphs season tables (team and player)."""
     from bblmlp.config import load_settings
     from bblmlp.ingest.mlb.fangraphs import (
+        fetch_batting_stats,
+        fetch_pitching_stats,
         fetch_team_batting,
         fetch_team_pitching,
+        normalize_batter_stats,
+        normalize_pitcher_stats,
         normalize_team_batting,
         normalize_team_pitching,
     )
     from bblmlp.storage import connect, ensure_table_from_df, init_schema, replace_partition
 
-    # (table_name, fetch_fn, normalize_fn) — Task 6 appends the player tables here.
+    # (table_name, fetch_fn, normalize_fn)
     specs = [
         ("fangraphs_team_batting", fetch_team_batting, normalize_team_batting),
         ("fangraphs_team_pitching", fetch_team_pitching, normalize_team_pitching),
+        ("pitcher_stats_season", fetch_pitching_stats, normalize_pitcher_stats),
+        ("batter_stats_season", fetch_batting_stats, normalize_batter_stats),
     ]
 
     settings = load_settings()
