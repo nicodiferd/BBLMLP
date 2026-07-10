@@ -111,6 +111,22 @@ CREATE TABLE IF NOT EXISTS player_ids (
 );
 """
 
+STANDINGS_DDL = """
+CREATE TABLE IF NOT EXISTS standings (
+    season INTEGER,
+    team_id INTEGER,
+    team_name VARCHAR,
+    w INTEGER,
+    l INTEGER,
+    win_pct DOUBLE,
+    gb VARCHAR,
+    div_rank VARCHAR,
+    streak VARCHAR,
+    runs_scored INTEGER,
+    runs_allowed INTEGER
+);
+"""
+
 _GAME_COLUMNS = [
     "game_pk", "season", "game_type", "game_date", "game_datetime", "home_team", "away_team",
     "home_team_id", "away_team_id", "home_probable_pitcher", "away_probable_pitcher",
@@ -129,6 +145,7 @@ def init_schema(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(GAMES_DDL)
     con.execute(STATCAST_DDL)
     con.execute(PLAYER_IDS_DDL)
+    con.execute(STANDINGS_DDL)
 
 
 def table_names(con: duckdb.DuckDBPyConnection) -> set[str]:

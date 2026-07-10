@@ -120,6 +120,22 @@ def ingest_fangraphs(season: int = typer.Option(..., "--season")) -> None:
     con.close()
 
 
+@ingest_app.command("standings")
+def ingest_standings(season: int = typer.Option(..., "--season")) -> None:
+    """Ingest a season of standings into the warehouse."""
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.mlb.standings import fetch_standings, normalize_standings
+    from bblmlp.storage import connect, init_schema, replace_partition
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    df = normalize_standings(fetch_standings(season), season=season)
+    n = replace_partition(con, "standings", df, "season")
+    con.close()
+    typer.echo(f"Wrote {n} standings rows for {season}")
+
+
 @ingest_app.command("players")
 def ingest_players() -> None:
     """Refresh the Chadwick player-id crosswalk."""
