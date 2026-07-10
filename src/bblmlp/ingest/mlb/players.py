@@ -12,6 +12,10 @@ def normalize_players(df: pd.DataFrame) -> pd.DataFrame:
     out = df[[c for c in _COLS if c in df.columns]].copy()
     out = out[out["key_mlbam"].notna()]
     out["key_mlbam"] = out["key_mlbam"].astype("int64")
+    # Chadwick uses -1 (and NaN) for players with no MLBAM id; drop those
+    # sentinels and any duplicate ids so key_mlbam stays a valid PRIMARY KEY.
+    out = out[out["key_mlbam"] > 0]
+    out = out.drop_duplicates(subset=["key_mlbam"], keep="first")
     return out
 
 
