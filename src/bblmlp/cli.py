@@ -85,5 +85,20 @@ def ingest_statcast(season: int = typer.Option(..., "--season")) -> None:
     typer.echo(f"Wrote {n} statcast rows for {season}")
 
 
+@ingest_app.command("players")
+def ingest_players() -> None:
+    """Refresh the Chadwick player-id crosswalk."""
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.mlb.players import fetch_chadwick, normalize_players
+    from bblmlp.storage import connect, init_schema, replace_all
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    n = replace_all(con, "player_ids", normalize_players(fetch_chadwick()))
+    con.close()
+    typer.echo(f"Loaded {n} players")
+
+
 if __name__ == "__main__":
     app()

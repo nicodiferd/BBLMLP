@@ -96,6 +96,19 @@ CREATE TABLE IF NOT EXISTS statcast_pitches (
 );
 """
 
+PLAYER_IDS_DDL = """
+CREATE TABLE IF NOT EXISTS player_ids (
+    key_mlbam BIGINT PRIMARY KEY,
+    key_fangraphs BIGINT,
+    key_bbref VARCHAR,
+    key_retro VARCHAR,
+    name_first VARCHAR,
+    name_last VARCHAR,
+    mlb_played_first INTEGER,
+    mlb_played_last INTEGER
+);
+"""
+
 _GAME_COLUMNS = [
     "game_pk", "season", "game_type", "game_date", "game_datetime", "home_team", "away_team",
     "home_team_id", "away_team_id", "home_probable_pitcher", "away_probable_pitcher",
@@ -112,6 +125,7 @@ def connect(path: str | Path) -> duckdb.DuckDBPyConnection:
 def init_schema(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(GAMES_DDL)
     con.execute(STATCAST_DDL)
+    con.execute(PLAYER_IDS_DDL)
 
 
 def table_names(con: duckdb.DuckDBPyConnection) -> set[str]:
