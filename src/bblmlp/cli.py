@@ -103,8 +103,8 @@ def ingest_fangraphs(season: int = typer.Option(..., "--season")) -> None:
 
     # (table_name, fetch_fn, normalize_fn)
     specs = [
-        ("fangraphs_team_batting", fetch_team_batting, normalize_team_batting),
-        ("fangraphs_team_pitching", fetch_team_pitching, normalize_team_pitching),
+        ("team_batting_season", fetch_team_batting, normalize_team_batting),
+        ("team_pitching_season", fetch_team_pitching, normalize_team_pitching),
         ("pitcher_stats_season", fetch_pitching_stats, normalize_pitcher_stats),
         ("batter_stats_season", fetch_batting_stats, normalize_batter_stats),
     ]
