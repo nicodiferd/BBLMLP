@@ -75,3 +75,15 @@ def fetch_batting_stats(season: int) -> pd.DataFrame:
     from pybaseball import batting_stats
 
     return batting_stats(season, season)
+
+
+# (table_name, fetch_fn, normalize_fn) for each of the four FanGraphs season
+# tables. Shared by the `ingest fangraphs` CLI command and the `ingest_all`
+# orchestrator so the composite-write loop (ensure_table_from_df +
+# replace_partition per table) is defined in exactly one place.
+FANGRAPHS_SPECS = [
+    ("team_batting_season", fetch_team_batting, normalize_team_batting),
+    ("team_pitching_season", fetch_team_pitching, normalize_team_pitching),
+    ("pitcher_stats_season", fetch_pitching_stats, normalize_pitcher_stats),
+    ("batter_stats_season", fetch_batting_stats, normalize_batter_stats),
+]

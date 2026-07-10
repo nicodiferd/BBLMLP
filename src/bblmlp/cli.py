@@ -91,30 +91,13 @@ def ingest_statcast(season: int = typer.Option(..., "--season")) -> None:
 def ingest_fangraphs(season: int = typer.Option(..., "--season")) -> None:
     """Backfill a season of FanGraphs season tables (team and player)."""
     from bblmlp.config import load_settings
-    from bblmlp.ingest.mlb.fangraphs import (
-        fetch_batting_stats,
-        fetch_pitching_stats,
-        fetch_team_batting,
-        fetch_team_pitching,
-        normalize_batter_stats,
-        normalize_pitcher_stats,
-        normalize_team_batting,
-        normalize_team_pitching,
-    )
+    from bblmlp.ingest.mlb.fangraphs import FANGRAPHS_SPECS
     from bblmlp.storage import connect, ensure_table_from_df, init_schema, replace_partition
-
-    # (table_name, fetch_fn, normalize_fn)
-    specs = [
-        ("team_batting_season", fetch_team_batting, normalize_team_batting),
-        ("team_pitching_season", fetch_team_pitching, normalize_team_pitching),
-        ("pitcher_stats_season", fetch_pitching_stats, normalize_pitcher_stats),
-        ("batter_stats_season", fetch_batting_stats, normalize_batter_stats),
-    ]
 
     settings = load_settings()
     con = connect(settings.data.warehouse_path)
     init_schema(con)
-    for table, fetch, normalize in specs:
+    for table, fetch, normalize in FANGRAPHS_SPECS:
         df = normalize(fetch(season), season=season)
         ensure_table_from_df(con, table, df)
         n = replace_partition(con, table, df, "season")
@@ -172,6 +155,62 @@ def ingest_players() -> None:
     n = replace_all(con, "player_ids", normalize_players(fetch_chadwick()))
     con.close()
     typer.echo(f"Loaded {n} players")
+
+
+@ingest_app.command("all")
+def ingest_all_cmd(
+    date: str = typer.Option(
+        None, "--date", help="Ingest a single live date (YYYY-MM-DD): players + that day's schedule."
+    ),
+    backfill: bool = typer.Option(
+        False, "--backfill", help="Backfill every source across settings.data.backfill_seasons."
+    ),
+) -> None:
+    """Run the full MLB ingest pipeline: players -> games -> statcast -> fangraphs -> standings."""
+    from types import SimpleNamespace
+
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.mlb.fangraphs import FANGRAPHS_SPECS
+    from bblmlp.ingest.mlb.ingest import ingest_all
+    from bblmlp.ingest.mlb.players import fetch_chadwick
+    from bblmlp.ingest.mlb.standings import fetch_standings
+    from bblmlp.ingest.mlb.statcast import fetch_statcast_season
+    from bblmlp.ingest.mlb.statsapi_client import fetch_schedule
+    from bblmlp.storage import connect, init_schema
+
+    if not date and not backfill:
+        raise typer.BadParameter("Provide --date YYYY-MM-DD or --backfill")
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+
+    if backfill:
+        # Full pipeline across every configured season.
+        fetchers = {
+            "chadwick": fetch_chadwick,
+            "schedule": fetch_schedule,
+            "statcast": fetch_statcast_season,
+            "fangraphs": FANGRAPHS_SPECS,
+            "standings": fetch_standings,
+        }
+        run_settings = settings
+    else:
+        # One live day: players (for id resolution) + that day's schedule only.
+        # Season-granular sources (statcast/fangraphs/standings) don't apply to
+        # a single date, so they're deliberately left out of `fetchers` — the
+        # orchestrator skips any source whose key is absent.
+        season = int(date[:4])
+        fetchers = {
+            "chadwick": fetch_chadwick,
+            "schedule": lambda s, e: fetch_schedule(date, date),
+        }
+        run_settings = SimpleNamespace(data=SimpleNamespace(backfill_seasons=[season]))
+
+    counts = ingest_all(con, run_settings, fetchers=fetchers)
+    con.close()
+    for source, n in counts.items():
+        typer.echo(f"{source}: {n}")
 
 
 @build_app.command("rollups")
