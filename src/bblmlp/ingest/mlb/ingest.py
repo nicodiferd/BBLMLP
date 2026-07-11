@@ -41,22 +41,26 @@ def ingest_all(con, settings, *, fetchers: dict) -> dict[str, int]:
     a source runs only if its key is present in `fetchers` (absent keys are
     skipped silently, so a caller/test can inject any subset without network
     access). Order: players -> games -> statcast -> fangraphs -> standings ->
-    rollups. Seasons come from `settings.data.backfill_seasons`.
+    team_crosswalk -> rollups. Seasons come from `settings.data.backfill_seasons`.
 
     Expected shape per key:
-      "chadwick":  () -> pd.DataFrame                     (players.fetch_chadwick)
-      "schedule":  (start_date, end_date) -> list[dict]    (statsapi_client.fetch_schedule)
-      "statcast":  (season) -> pd.DataFrame                (statcast.fetch_statcast_season)
-      "fangraphs": list[(table, fetch_fn, normalize_fn)]   (fangraphs.FANGRAPHS_SPECS)
-      "standings": (season) -> dict                        (standings.fetch_standings)
-      "rollups":   presence-only flag; value is not called (rollups are derived
-                   from statcast_pitches already in the warehouse, not fetched)
+      "chadwick":       () -> pd.DataFrame                  (players.fetch_chadwick)
+      "schedule":       (start_date, end_date) -> list[dict] (statsapi_client.fetch_schedule)
+      "statcast":       (season) -> pd.DataFrame             (statcast.fetch_statcast_season)
+      "fangraphs":      list[(table, fetch_fn, normalize_fn)] (fangraphs.FANGRAPHS_SPECS)
+      "standings":      (season) -> dict                     (standings.fetch_standings)
+      "team_crosswalk": presence-only flag; value is not called (derived from
+                        standings/games/statcast_pitches/team_batting_season
+                        already in the warehouse, not fetched)
+      "rollups":        presence-only flag; value is not called (rollups are derived
+                        from statcast_pitches already in the warehouse, not fetched)
     """
     from bblmlp.ingest.mlb.players import normalize_players
     from bblmlp.ingest.mlb.rollups import pitcher_game_stats, team_game_stats
     from bblmlp.ingest.mlb.standings import normalize_standings
     from bblmlp.ingest.mlb.statcast import normalize_statcast, write_statcast
-    from bblmlp.storage import ensure_table_from_df
+    from bblmlp.ingest.mlb.team_crosswalk import build_team_crosswalk
+    from bblmlp.storage import ensure_table_from_df, table_names
 
     seasons = settings.data.backfill_seasons
     counts: dict[str, int] = {}
@@ -103,7 +107,34 @@ def ingest_all(con, settings, *, fetchers: dict) -> dict[str, int]:
             total += replace_partition(con, "standings", df, "season")
         counts["standings"] = total
 
-    # 6. rollups — derived from statcast_pitches already in the warehouse;
+    # 6. team_crosswalk — reconciles team_id against Statcast/FanGraphs
+    # abbreviations; derived from tables already in the warehouse, gated by
+    # presence only (no network fetch, so the dict value is unused).
+    if "team_crosswalk" in fetchers:
+        total = 0
+        has_fangraphs_table = "team_batting_season" in table_names(con)
+        for season in seasons:
+            standings_df = con.execute(
+                "SELECT season, team_id, team_name FROM standings WHERE season = ?", [season]
+            ).df()
+            games_df = con.execute(
+                "SELECT game_pk, season, game_type, home_team_id, away_team_id FROM games WHERE season = ?",
+                [season],
+            ).df()
+            statcast_df = con.execute(
+                "SELECT game_pk, home_team, away_team FROM statcast_pitches WHERE season = ?", [season]
+            ).df()
+            if has_fangraphs_table:
+                fangraphs_df = con.execute(
+                    "SELECT season, team FROM team_batting_season WHERE season = ?", [season]
+                ).df()
+            else:
+                fangraphs_df = pd.DataFrame(columns=["season", "team"])
+            crosswalk_df = build_team_crosswalk(standings_df, games_df, statcast_df, fangraphs_df)
+            total += replace_partition(con, "team_crosswalk", crosswalk_df, "season")
+        counts["team_crosswalk"] = total
+
+    # 7. rollups — derived from statcast_pitches already in the warehouse;
     # gated by presence only (no network fetch, so the dict value is unused).
     if "rollups" in fetchers:
         total = 0

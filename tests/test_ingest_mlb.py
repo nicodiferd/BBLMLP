@@ -104,3 +104,45 @@ def test_ingest_all_runs_rollups_when_statcast_and_rollups_keys_present(tmp_path
     assert counts["rollups"] >= 1
     assert con.execute("SELECT count(*) FROM pitcher_game_stats").fetchone()[0] >= 1
     assert con.execute("SELECT count(*) FROM team_game_stats").fetchone()[0] >= 1
+
+
+def test_ingest_all_builds_team_crosswalk_when_keys_present(tmp_path):
+    con = connect(tmp_path / "wh.duckdb"); init_schema(con)
+    import pandas as pd
+
+    def fake_statcast(season):
+        return pd.DataFrame({
+            "game_pk": [744834],  # matches RAW fixture's game_id
+            "season": [season],
+            "home_team": ["WSH"], "away_team": ["NYM"],
+            "inning_topbot": ["Top"],
+            "pitcher": [500], "batter": [10],
+            "at_bat_number": [1], "pitch_number": [1],
+            "events": [None], "description": ["ball"],
+            "estimated_woba_using_speedangle": [0.0], "release_speed": [95],
+        })
+
+    def fake_standings(season):
+        return {200: {"teams": [
+            {"team_id": 120, "name": "Washington Nationals", "w": 1, "l": 0},
+            {"team_id": 121, "name": "New York Mets", "w": 0, "l": 1},
+        ]}}
+
+    fetchers = {
+        "chadwick": lambda: pd.DataFrame({"key_mlbam":[111],"key_fangraphs":[11],
+            "key_bbref":["a"],"key_retro":["r"],"name_first":["Ryan"],
+            "name_last":["Feltner"],"mlb_played_first":[2021],"mlb_played_last":[2026]}),
+        "schedule": lambda s, e: RAW,
+        "statcast": fake_statcast,
+        "standings": fake_standings,
+        "team_crosswalk": True,
+    }
+    class S:  # minimal settings stub
+        class data: warehouse_path=str(tmp_path/"wh.duckdb"); backfill_seasons=[2024]
+
+    counts = ingest_all(con, S, fetchers=fetchers)
+    assert counts["team_crosswalk"] == 2
+    rows = con.execute(
+        "SELECT team_id, statcast_abbr FROM team_crosswalk WHERE season = 2024 ORDER BY team_id"
+    ).fetchall()
+    assert rows == [(120, "WSH"), (121, "NYM")]

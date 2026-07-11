@@ -193,6 +193,7 @@ def ingest_all_cmd(
             "statcast": fetch_statcast_season,
             "fangraphs": FANGRAPHS_SPECS,
             "standings": fetch_standings,
+            "team_crosswalk": True,
             "rollups": True,
         }
         run_settings = settings
@@ -212,6 +213,40 @@ def ingest_all_cmd(
     con.close()
     for source, n in counts.items():
         typer.echo(f"{source}: {n}")
+
+
+@build_app.command("team-crosswalk")
+def build_team_crosswalk_cmd(season: int = typer.Option(..., "--season")) -> None:
+    """Reconcile team_id against Statcast/FanGraphs abbreviations for a season."""
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.mlb.team_crosswalk import build_team_crosswalk
+    from bblmlp.storage import connect, init_schema, replace_partition, table_names
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    standings = con.execute(
+        "SELECT season, team_id, team_name FROM standings WHERE season = ?", [season]
+    ).df()
+    games = con.execute(
+        "SELECT game_pk, season, game_type, home_team_id, away_team_id FROM games WHERE season = ?",
+        [season],
+    ).df()
+    statcast = con.execute(
+        "SELECT game_pk, home_team, away_team FROM statcast_pitches WHERE season = ?", [season]
+    ).df()
+    if "team_batting_season" in table_names(con):
+        fangraphs = con.execute(
+            "SELECT season, team FROM team_batting_season WHERE season = ?", [season]
+        ).df()
+    else:
+        import pandas as pd
+
+        fangraphs = pd.DataFrame(columns=["season", "team"])
+    out = build_team_crosswalk(standings, games, statcast, fangraphs)
+    n = replace_partition(con, "team_crosswalk", out, "season")
+    con.close()
+    typer.echo(f"Wrote {n} team_crosswalk rows for {season}")
 
 
 @build_app.command("rollups")

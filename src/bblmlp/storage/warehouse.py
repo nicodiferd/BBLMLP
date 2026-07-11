@@ -167,6 +167,17 @@ CREATE TABLE IF NOT EXISTS live_lineups (
 );
 """
 
+TEAM_CROSSWALK_DDL = """
+CREATE TABLE IF NOT EXISTS team_crosswalk (
+    team_id INTEGER NOT NULL,
+    season INTEGER NOT NULL,
+    team_name VARCHAR,
+    statcast_abbr VARCHAR,
+    fangraphs_abbr VARCHAR,
+    PRIMARY KEY (team_id, season)
+);
+"""
+
 _GAME_COLUMNS = [
     "game_pk", "season", "game_type", "game_date", "game_datetime", "home_team", "away_team",
     "home_team_id", "away_team_id", "home_probable_pitcher", "away_probable_pitcher",
@@ -189,6 +200,7 @@ def init_schema(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(TEAM_GAME_DDL)
     con.execute(STANDINGS_DDL)
     con.execute(LIVE_LINEUPS_DDL)
+    con.execute(TEAM_CROSSWALK_DDL)
 
 
 def table_names(con: duckdb.DuckDBPyConnection) -> set[str]:
