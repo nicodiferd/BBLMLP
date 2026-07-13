@@ -5,9 +5,12 @@ unit-tested with fixtures.
 from __future__ import annotations
 
 import datetime as dt
+import json
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+
+from bblmlp.ingest.kalshi.team_map import KALSHI_TEAM_CODES
 
 _ET = ZoneInfo("America/New_York")
 
@@ -114,3 +117,71 @@ def match_game_pk(
         return int(candidates.loc[diffs.idxmin(), "game_pk"])
 
     return None
+
+
+def _to_float(value) -> float | None:
+    if value is None or value == "":
+        return None
+    return float(value)
+
+
+def normalize_snapshot(
+    markets: list[dict],
+    orderbooks: dict[str, dict],
+    games_df: pd.DataFrame,
+    pulled_at: str,
+) -> pd.DataFrame:
+    """Turn raw Kalshi market + orderbook payloads into `kalshi_quotes` rows.
+
+    Never drops a row for a failed join or an unmapped team code (e.g. the
+    All-Star game's AL/NL) -- price data is irreplaceable (Kalshi has no
+    history API), so it's always persisted with game_pk/team_id as NULL when
+    they can't be resolved.
+    """
+    pulled_at_ts = pd.Timestamp(pulled_at)
+    rows = []
+    for market in markets:
+        parsed = parse_market_ticker(market)
+        team_code = parsed["kalshi_team_code"]
+        other_code = parsed["other_team_code"]
+        team_id = KALSHI_TEAM_CODES.get(team_code)
+        other_team_id = KALSHI_TEAM_CODES.get(other_code)
+
+        game_pk = None
+        if team_id is not None and other_team_id is not None:
+            home_team_id = team_id if parsed["is_home"] else other_team_id
+            away_team_id = other_team_id if parsed["is_home"] else team_id
+            game_pk = match_game_pk(
+                games_df, parsed["game_date"], home_team_id, away_team_id,
+                game_number=parsed["game_number"], hhmm_et=parsed["hhmm_et"],
+            )
+
+        yes_bid = _to_float(market.get("yes_bid_dollars"))
+        yes_ask = _to_float(market.get("yes_ask_dollars"))
+        book = orderbooks.get(market["ticker"], {}).get("orderbook_fp", {})
+
+        rows.append({
+            "pulled_at": pulled_at_ts,
+            "event_ticker": market["event_ticker"],
+            "market_ticker": market["ticker"],
+            "game_pk": game_pk,
+            "kalshi_team_code": team_code,
+            "is_home": parsed["is_home"],
+            "team_id": team_id,
+            "yes_bid": yes_bid,
+            "yes_ask": yes_ask,
+            "no_bid": _to_float(market.get("no_bid_dollars")),
+            "no_ask": _to_float(market.get("no_ask_dollars")),
+            "spread": None if yes_bid is None or yes_ask is None else round(yes_ask - yes_bid, 4),
+            "volume_fp": _to_float(market.get("volume_fp")),
+            "open_interest_fp": _to_float(market.get("open_interest_fp")),
+            "status": market.get("status"),
+            "yes_book_json": json.dumps(book.get("yes_dollars", [])),
+            "no_book_json": json.dumps(book.get("no_dollars", [])),
+        })
+
+    return pd.DataFrame(rows, columns=[
+        "pulled_at", "event_ticker", "market_ticker", "game_pk", "kalshi_team_code",
+        "is_home", "team_id", "yes_bid", "yes_ask", "no_bid", "no_ask", "spread",
+        "volume_fp", "open_interest_fp", "status", "yes_book_json", "no_book_json",
+    ])
