@@ -4,8 +4,10 @@ import typer
 app = typer.Typer(help="Baseball ML prediction for Kalshi single-game markets.")
 ingest_app = typer.Typer(help="Ingest data into the warehouse.")
 build_app = typer.Typer(help="Build derived tables from ingested data.")
+check_app = typer.Typer(help="Repeatable data-quality checks against the warehouse.")
 app.add_typer(ingest_app, name="ingest")
 app.add_typer(build_app, name="build")
+app.add_typer(check_app, name="check")
 
 
 @app.command()
@@ -283,6 +285,26 @@ def build_park_reference_cmd() -> None:
     n = replace_all(con, "park_reference", out)
     con.close()
     typer.echo(f"Wrote {n} park_reference rows")
+
+
+@check_app.command("venues")
+def check_venues_cmd() -> None:
+    """Report any games.venue string not yet mapped in park_reference (sponsor rename/relocation guard)."""
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.mlb.park_reference import find_unmapped_venues
+    from bblmlp.storage import connect, init_schema
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    games = con.execute("SELECT game_type, venue FROM games").df()
+    con.close()
+    unmapped = find_unmapped_venues(games)
+    if not unmapped:
+        raise typer.Exit(code=0)
+    for venue in sorted(unmapped):
+        typer.echo(venue)
+    raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
