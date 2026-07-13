@@ -24,3 +24,6 @@ venv/
 
 # Superpowers SDD scratch (progress ledger)
 .superpowers/
+
+# Git worktrees used for isolated feature-branch execution
+.worktrees/
