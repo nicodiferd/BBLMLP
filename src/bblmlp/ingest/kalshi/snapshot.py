@@ -5,6 +5,11 @@ unit-tested with fixtures.
 from __future__ import annotations
 
 import datetime as dt
+from zoneinfo import ZoneInfo
+
+import pandas as pd
+
+_ET = ZoneInfo("America/New_York")
 
 _MONTHS = {
     "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
@@ -57,3 +62,55 @@ def parse_market_ticker(market: dict) -> dict:
         "other_team_code": other_team_code,
         "is_home": is_home,
     }
+
+
+def match_game_pk(
+    games_df: "pd.DataFrame",
+    game_date: dt.date,
+    home_team_id: int,
+    away_team_id: int,
+    *,
+    game_number: int | None = None,
+    hhmm_et: str | None = None,
+) -> int | None:
+    """Join a Kalshi market to our `games` table by date + team ids.
+
+    Handles doubleheaders (>1 candidate row): prefers the explicit `game_number`
+    (from a `G1`/`G2` ticker suffix) when given, else picks the candidate whose
+    `game_datetime` converts to America/New_York wall-clock closest to `hhmm_et`.
+    Returns None (never raises) when there's no candidate, or when there's more
+    than one and no disambiguator was given -- callers must persist the price
+    row anyway with game_pk=NULL rather than drop it (see design doc's core
+    "never drop a row" principle).
+    """
+    gd = pd.to_datetime(games_df["game_date"]).dt.date
+    mask = (
+        (gd == game_date)
+        & (games_df["home_team_id"] == home_team_id)
+        & (games_df["away_team_id"] == away_team_id)
+    )
+    candidates = games_df[mask]
+    if len(candidates) == 0:
+        return None
+    if len(candidates) == 1:
+        return int(candidates.iloc[0]["game_pk"])
+
+    candidates = candidates.sort_values("game_datetime")
+
+    if game_number is not None:
+        idx = game_number - 1
+        if 0 <= idx < len(candidates):
+            return int(candidates.iloc[idx]["game_pk"])
+        return None
+
+    if hhmm_et is not None:
+        target = int(hhmm_et)
+
+        def _et_hhmm(value) -> int:
+            local = pd.Timestamp(value).tz_localize("UTC").tz_convert(_ET)
+            return local.hour * 100 + local.minute
+
+        diffs = candidates["game_datetime"].map(lambda v: abs(_et_hhmm(v) - target))
+        return int(candidates.loc[diffs.idxmin(), "game_pk"])
+
+    return None
