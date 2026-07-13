@@ -57,12 +57,24 @@ ingest source, since the join key already exists in the warehouse.
     stadium to research.
 
 **Scope decision from these findings:** full physical-fact research (altitude, roof, dimensions,
-orientation) covers only the ~32 parks that are or were a recurring team home (the 30 current
-parks + Sahlen Field + Steinbrenner Field; sponsor-renamed parks reuse the same `park_id` as their
-prior name). One-off neutral-site venues get a shared `park_id = "neutral_site"` with `NULL`
-facts rather than individual research — real but low-value data, not worth blocking the pipeline
-over. `NULL` venue rows are excluded from `find_unmapped_venues` entirely (already a known gap,
-tracked separately, not a new venue).
+orientation) covers every venue with a meaningful regular-season game count in 2021-2025 (>15
+games) — **34 distinct `park_id`s**: the 30 current team homes (which already include
+`Sutter Health Park`, `Rate Field`, `Daikin Park`, and `Tropicana Field` as the Athletics'/White
+Sox's/Astros'/Rays' current parks) plus 4 former-or-temporary team homes with substantial game
+counts: `Oakland Coliseum` (323 games, 2021-2024 — the Athletics' home before Sacramento, **not**
+a low-value venue despite no longer being current), `Sahlen Field` (23 games, 2021), `TD Ballpark`
+(21 games, 2021), and `George M. Steinbrenner Field` (81 games, 2025 — Rays' temporary home after
+hurricane damage to Tropicana Field). Sponsor-renamed venues reuse the same `park_id` as their
+prior name (`Guaranteed Rate Field`/`Rate Field` → 1 id; `Minute Maid Park`/`Daikin Park` → 1 id),
+so 34 `park_id`s cover 36 distinct venue strings.
+
+The remaining **9 one-off neutral-site venues** (≤4 games each: `BB&T Ballpark`,
+`Bristol Motor Speedway`, `Estadio Alfredo Harp Helu`, `Gocheok Sky Dome`, `Journey Bank Ballpark`,
+`London Stadium`, `Muncy Bank Ballpark`, `Rickwood Field`, `Tokyo Dome`) get a shared
+`park_id = "neutral_site"` with `NULL` facts rather than individual research — real venues, but
+not worth blocking the pipeline over 1-4 games each. `NULL` venue rows (2 known rows, 2021-2022)
+are excluded from `find_unmapped_venues` entirely — a known, pre-existing data-quality gap, not a
+new venue.
 
 ## 3. Module layout
 
