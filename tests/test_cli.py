@@ -14,3 +14,9 @@ def test_version_command_prints_version():
 def test_ingest_group_exists():
     result = runner.invoke(app, ["ingest", "--help"])
     assert result.exit_code == 0
+
+
+def test_build_group_has_park_reference_command():
+    result = runner.invoke(app, ["build", "--help"])
+    assert result.exit_code == 0
+    assert "park-reference" in result.stdout

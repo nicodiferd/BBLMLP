@@ -268,5 +268,22 @@ def build_rollups(season: int = typer.Option(..., "--season")) -> None:
     typer.echo(f"Wrote {pitcher_rows} pitcher-game rows and {team_rows} team-game rows for {season}")
 
 
+@build_app.command("park-reference")
+def build_park_reference_cmd() -> None:
+    """Build the park_reference table from games.venue (no --season: needs full history)."""
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.mlb.park_reference import build_park_reference
+    from bblmlp.storage import connect, init_schema, replace_all
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    games = con.execute("SELECT game_type, venue FROM games").df()
+    out = build_park_reference(games)
+    n = replace_all(con, "park_reference", out)
+    con.close()
+    typer.echo(f"Wrote {n} park_reference rows")
+
+
 if __name__ == "__main__":
     app()
