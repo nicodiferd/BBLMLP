@@ -29,6 +29,17 @@ def test_init_schema_creates_tables(tmp_path):
     assert {"games", "statcast_pitches"}.issubset(table_names(con))
 
 
+def test_init_schema_creates_park_reference_table(tmp_path):
+    con = connect(tmp_path / "w.duckdb")
+    init_schema(con)
+    assert "park_reference" in table_names(con)
+    cols = [r[0] for r in con.execute("DESCRIBE park_reference").fetchall()]
+    assert cols == [
+        "venue", "park_id", "park_name", "altitude_ft", "roof_type",
+        "lf_ft", "cf_ft", "rf_ft", "orientation_deg", "opened_year",
+    ]
+
+
 def test_writers_quote_reserved_word_columns():
     # FanGraphs' wide schema includes columns that snake to SQL reserved words
     # (e.g. `positional`, `order`); the writers must quote identifiers.

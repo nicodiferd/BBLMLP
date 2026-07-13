@@ -178,6 +178,21 @@ CREATE TABLE IF NOT EXISTS team_crosswalk (
 );
 """
 
+PARK_REFERENCE_DDL = """
+CREATE TABLE IF NOT EXISTS park_reference (
+    venue VARCHAR PRIMARY KEY,
+    park_id VARCHAR NOT NULL,
+    park_name VARCHAR,
+    altitude_ft INTEGER,
+    roof_type VARCHAR,
+    lf_ft INTEGER,
+    cf_ft INTEGER,
+    rf_ft INTEGER,
+    orientation_deg INTEGER,
+    opened_year INTEGER
+);
+"""
+
 _GAME_COLUMNS = [
     "game_pk", "season", "game_type", "game_date", "game_datetime", "home_team", "away_team",
     "home_team_id", "away_team_id", "home_probable_pitcher", "away_probable_pitcher",
@@ -201,6 +216,7 @@ def init_schema(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(STANDINGS_DDL)
     con.execute(LIVE_LINEUPS_DDL)
     con.execute(TEAM_CROSSWALK_DDL)
+    con.execute(PARK_REFERENCE_DDL)
 
 
 def table_names(con: duckdb.DuckDBPyConnection) -> set[str]:
