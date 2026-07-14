@@ -156,10 +156,13 @@ def test_pitcher_leakage_perturbing_own_stats_does_not_change_own_row():
 
 
 def test_team_doubleheader_games_ordered_by_datetime_not_just_date():
-    # Two games on the SAME game_date (a doubleheader) -- the earlier
-    # game_datetime must be treated as happening first.
+    # Two games on the SAME game_date (a doubleheader) -- game_pk order is
+    # DELIBERATELY inverted relative to game_datetime order (pk 10 is the
+    # nightcap at 19:00, pk 11 is the opener at 13:00) so this test would
+    # fail under a regression that dropped game_datetime from ORDER BY and
+    # fell back to game_pk to break the same-date tie.
     team_game_stats = pd.DataFrame({
-        "game_pk": [10, 11, 12],
+        "game_pk": [11, 10, 12],
         "season": [2024] * 3,
         "team": ["NYY"] * 3,
         "pa": [36, 34, 38],
@@ -168,24 +171,34 @@ def test_team_doubleheader_games_ordered_by_datetime_not_just_date():
         "bb_pct": [0.05, 0.06, 0.07],
     })
     games = pd.DataFrame({
-        "game_pk": [10, 11, 12],
-        "game_date": ["2024-05-01", "2024-05-01", "2024-05-02"],  # 10, 11 = doubleheader
+        "game_pk": [11, 10, 12],
+        "game_date": ["2024-05-01", "2024-05-01", "2024-05-02"],
         "game_datetime": ["2024-05-01T13:00", "2024-05-01T19:00", "2024-05-02T18:00"],
     })
     con = duckdb.connect(":memory:")
     out = team_rolling_features(con, team_game_stats, games)
 
-    row_g2 = out[out["game_pk"] == 11].iloc[0]  # game 2 of the doubleheader
-    assert row_g2["n_games_30"] == 1
-    assert row_g2["k_pct_30"] == pytest.approx(0.20)  # sees only game 10 (the day's opener)
+    # pk 10 is the NIGHTCAP (19:00, chronologically second) despite having
+    # the smaller game_pk -- it must see pk 11 (the 13:00 opener) in its
+    # trailing window.
+    row_nightcap = out[out["game_pk"] == 10].iloc[0]
+    assert row_nightcap["n_games_30"] == 1
+    assert row_nightcap["k_pct_30"] == pytest.approx(0.20)  # sees only pk 11 (the opener)
+
+    # pk 11 is the OPENER (13:00, chronologically first) -- it must see
+    # zero prior games, despite having the larger game_pk.
+    row_opener = out[out["game_pk"] == 11].iloc[0]
+    assert row_opener["n_games_30"] == 0
 
     row_next_day = out[out["game_pk"] == 12].iloc[0]
-    assert row_next_day["n_games_30"] == 2  # sees both games 10 and 11
+    assert row_next_day["n_games_30"] == 2  # sees both doubleheader games
 
 
 def test_pitcher_doubleheader_starts_ordered_by_datetime_not_just_date():
+    # game_pk order is deliberately inverted relative to game_datetime:
+    # pk 20 is the nightcap (19:00), pk 21 is the opener (13:00).
     pitcher_game_stats = pd.DataFrame({
-        "game_pk": [20, 21],
+        "game_pk": [21, 20],
         "season": [2024] * 2,
         "pitcher": [700, 700],
         "is_starter": [True, True],
@@ -197,12 +210,18 @@ def test_pitcher_doubleheader_starts_ordered_by_datetime_not_just_date():
         "whiffs": [8, 9],
     })
     games = pd.DataFrame({
-        "game_pk": [20, 21],
+        "game_pk": [21, 20],
         "game_date": ["2024-05-01", "2024-05-01"],
         "game_datetime": ["2024-05-01T13:00", "2024-05-01T19:00"],
     })
     con = duckdb.connect(":memory:")
     out = pitcher_rolling_features(con, pitcher_game_stats, games)
-    row_g2 = out[out["game_pk"] == 21].iloc[0]
-    assert row_g2["n_games_10"] == 1
-    assert row_g2["k_pct_10"] == pytest.approx(5 / 24)
+
+    # pk 20 is the nightcap (19:00) -- must see pk 21 (13:00 opener) despite
+    # having the smaller game_pk.
+    row_nightcap = out[out["game_pk"] == 20].iloc[0]
+    assert row_nightcap["n_games_10"] == 1
+    assert row_nightcap["k_pct_10"] == pytest.approx(5 / 24)
+
+    row_opener = out[out["game_pk"] == 21].iloc[0]
+    assert row_opener["n_games_10"] == 0
