@@ -118,6 +118,17 @@ bb build rollups --season 2024
 Writes `pitcher_game_stats` / `team_game_stats`, computed from `statcast_pitches` already
 in the warehouse (no network call).
 
+### `build features` — as-of rolling-window team/pitcher features
+
+```bash
+bb build features --season 2024
+```
+Writes `team_features` (30/162-game trailing windows) and `pitcher_features` (10/35/75-game
+trailing windows), computed from `team_game_stats`/`pitcher_game_stats` already in the
+warehouse (no network call). Every feature for game N is built only from games strictly
+before N. Loads `season <= <year>` internally so windows can span a season boundary, but
+only ever writes rows for `--season`.
+
 ### `build park-reference` — static park attributes
 
 ```bash
@@ -139,28 +150,17 @@ Silent + exit code `0` means every `games.venue` string is already mapped in
 string prints (one per line) and the command exits `1` — that's the signal to add it to
 `park_reference` and re-run `build park-reference`.
 
-## Kalshi market ingest — on a separate branch, not yet on `main`
-
-The Kalshi client (public REST reads, no auth) is fully built and tested but lives on
-branch `feat/kalshi-snapshot-ingest` (checked out at
-`.worktrees/feat-kalshi-snapshot-ingest/`), not merged to `main` yet.
+### `ingest kalshi` — pull open Kalshi MLB markets + prices
 
 ```bash
-cd .worktrees/feat-kalshi-snapshot-ingest
 bb ingest kalshi
 ```
-(`bb` still resolves here — it's a relative-path alias, so it works from any directory
-that has its own `src/` and `.venv/`, which this worktree does.)
-Pulls every currently-open `KXMLBGAME-*` market from Kalshi, matches each to a `game_pk`
-via `games` (regular-season games only — markets for exhibitions like the All-Star Game
-won't match and get `game_pk = NULL`), and:
+Pulls every currently-open `KXMLBGAME-*` market from Kalshi (public REST reads, no auth),
+matches each to a `game_pk` via `games` (regular-season games only — markets for
+exhibitions like the All-Star Game won't match and get `game_pk = NULL`), and:
 - appends one row per market side to `kalshi_quotes` (bid/ask, spread, volume, open
   interest, full order-book depth as JSON)
 - writes a timestamped snapshot to `data/kalshi_snapshots/<UTC-timestamp>.parquet`
-
-That worktree has its own copy of `data/warehouse.duckdb` (copied from `main`'s at setup
-time) — it does **not** share `main`'s warehouse live, so schedule data ingested on
-`main` afterward won't show up there until copied again.
 
 ## Peeking at the warehouse directly
 
