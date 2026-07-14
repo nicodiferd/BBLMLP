@@ -193,6 +193,46 @@ CREATE TABLE IF NOT EXISTS park_reference (
 );
 """
 
+TEAM_FEATURES_DDL = """
+CREATE TABLE IF NOT EXISTS team_features (
+    game_pk BIGINT,
+    season INTEGER,
+    team VARCHAR,
+    k_pct_30 DOUBLE,
+    bb_pct_30 DOUBLE,
+    xwoba_30 DOUBLE,
+    n_games_30 INTEGER,
+    k_pct_162 DOUBLE,
+    bb_pct_162 DOUBLE,
+    xwoba_162 DOUBLE,
+    n_games_162 INTEGER
+);
+"""
+
+PITCHER_FEATURES_DDL = """
+CREATE TABLE IF NOT EXISTS pitcher_features (
+    game_pk BIGINT,
+    season INTEGER,
+    pitcher INTEGER,
+    is_starter BOOLEAN,
+    k_pct_10 DOUBLE,
+    bb_pct_10 DOUBLE,
+    swstr_pct_10 DOUBLE,
+    avg_velo_10 DOUBLE,
+    n_games_10 INTEGER,
+    k_pct_35 DOUBLE,
+    bb_pct_35 DOUBLE,
+    swstr_pct_35 DOUBLE,
+    avg_velo_35 DOUBLE,
+    n_games_35 INTEGER,
+    k_pct_75 DOUBLE,
+    bb_pct_75 DOUBLE,
+    swstr_pct_75 DOUBLE,
+    avg_velo_75 DOUBLE,
+    n_games_75 INTEGER
+);
+"""
+
 _GAME_COLUMNS = [
     "game_pk", "season", "game_type", "game_date", "game_datetime", "home_team", "away_team",
     "home_team_id", "away_team_id", "home_probable_pitcher", "away_probable_pitcher",
@@ -217,6 +257,8 @@ def init_schema(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(LIVE_LINEUPS_DDL)
     con.execute(TEAM_CROSSWALK_DDL)
     con.execute(PARK_REFERENCE_DDL)
+    con.execute(TEAM_FEATURES_DDL)
+    con.execute(PITCHER_FEATURES_DDL)
 
 
 def table_names(con: duckdb.DuckDBPyConnection) -> set[str]:

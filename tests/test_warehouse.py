@@ -137,3 +137,28 @@ def test_ensure_table_from_df_is_a_noop_if_table_already_exists():
     replace_partition(con, "t2", df, "season")
     ensure_table_from_df(con, "t2", df)  # should not wipe existing rows
     assert con.execute("SELECT count(*) FROM t2").fetchone()[0] == 1
+
+
+def test_init_schema_creates_team_features_table(tmp_path):
+    con = connect(tmp_path / "w.duckdb")
+    init_schema(con)
+    assert "team_features" in table_names(con)
+    cols = [r[0] for r in con.execute("DESCRIBE team_features").fetchall()]
+    assert cols == [
+        "game_pk", "season", "team",
+        "k_pct_30", "bb_pct_30", "xwoba_30", "n_games_30",
+        "k_pct_162", "bb_pct_162", "xwoba_162", "n_games_162",
+    ]
+
+
+def test_init_schema_creates_pitcher_features_table(tmp_path):
+    con = connect(tmp_path / "w.duckdb")
+    init_schema(con)
+    assert "pitcher_features" in table_names(con)
+    cols = [r[0] for r in con.execute("DESCRIBE pitcher_features").fetchall()]
+    assert cols == [
+        "game_pk", "season", "pitcher", "is_starter",
+        "k_pct_10", "bb_pct_10", "swstr_pct_10", "avg_velo_10", "n_games_10",
+        "k_pct_35", "bb_pct_35", "swstr_pct_35", "avg_velo_35", "n_games_35",
+        "k_pct_75", "bb_pct_75", "swstr_pct_75", "avg_velo_75", "n_games_75",
+    ]
