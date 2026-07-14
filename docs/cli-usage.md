@@ -110,24 +110,28 @@ Writes `team_crosswalk`: one row per `(team_id, season)` mapping StatsAPI's nume
 `team_id` to Statcast's and FanGraphs' differing abbreviations. Required before joining
 `statcast_pitches` or FanGraphs tables against `games`/`standings`.
 
-### `build rollups` — pitcher/team game stats from Statcast
+### `build rollups` — pitcher/team/bullpen game stats from Statcast
 
 ```bash
 bb build rollups --season 2024
 ```
-Writes `pitcher_game_stats` / `team_game_stats`, computed from `statcast_pitches` already
-in the warehouse (no network call).
+Writes `pitcher_game_stats` / `team_game_stats` / `bullpen_game_stats`, computed from
+`statcast_pitches` already in the warehouse (no network call). `bullpen_game_stats` is an
+exact aggregation of `pitcher_game_stats` rows where `is_starter = false`, grouped by
+`(game_pk, team)` — never a subtraction of starter totals from team totals.
 
-### `build features` — as-of rolling-window team/pitcher features
+### `build features` — as-of rolling-window team/pitcher/bullpen features
 
 ```bash
 bb build features --season 2024
 ```
-Writes `team_features` (30/162-game trailing windows) and `pitcher_features` (10/35/75-game
-trailing windows), computed from `team_game_stats`/`pitcher_game_stats` already in the
-warehouse (no network call). Every feature for game N is built only from games strictly
-before N. Loads `season <= <year>` internally so windows can span a season boundary, but
-only ever writes rows for `--season`.
+Writes `team_features` (30/162-game trailing windows), `pitcher_features` (10/35/75-game
+trailing windows), and `bullpen_features` (10/35/75-game trailing windows, partitioned by
+team rather than individual pitcher identity), computed from `team_game_stats` /
+`pitcher_game_stats` / `bullpen_game_stats` already in the warehouse (no network call).
+Every feature for game N is built only from games strictly before N. Loads `season <=
+<year>` internally so windows can span a season boundary, but only ever writes rows for
+`--season`.
 
 ### `build park-reference` — static park attributes
 
