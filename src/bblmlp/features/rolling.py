@@ -65,3 +65,48 @@ def team_rolling_features(
     finally:
         con.unregister("team_game_stats_src")
         con.unregister("games_src")
+
+
+PITCHER_WINDOWS: tuple[int, ...] = (10, 35, 75)
+
+
+def pitcher_rolling_features(
+    con: duckdb.DuckDBPyConnection,
+    pitcher_game_stats: pd.DataFrame,
+    games: pd.DataFrame,
+) -> pd.DataFrame:
+    window_cols = []
+    for w in PITCHER_WINDOWS:
+        window_cols.append(f"""
+            SUM(k) OVER w{w} / NULLIF(SUM(batters_faced) OVER w{w}, 0) AS k_pct_{w},
+            SUM(bb) OVER w{w} / NULLIF(SUM(batters_faced) OVER w{w}, 0) AS bb_pct_{w},
+            SUM(whiffs) OVER w{w} / NULLIF(SUM(pitches) OVER w{w}, 0) AS swstr_pct_{w},
+            AVG(avg_velo) OVER w{w} AS avg_velo_{w},
+            COUNT(*) OVER w{w} AS n_games_{w}
+        """)
+    window_defs = ",\n".join(
+        f"w{w} AS (PARTITION BY pitcher ORDER BY game_date, game_datetime, game_pk "
+        f"ROWS BETWEEN {w} PRECEDING AND 1 PRECEDING)"
+        for w in PITCHER_WINDOWS
+    )
+    sql = f"""
+        WITH base AS (
+            SELECT p.game_pk, p.season, p.pitcher, p.is_starter,
+                   p.pitches, p.batters_faced, p.avg_velo, p.k, p.bb, p.whiffs,
+                   g.game_date, g.game_datetime
+            FROM pitcher_game_stats_src p
+            JOIN games_src g USING (game_pk)
+        )
+        SELECT game_pk, season, pitcher, is_starter,
+            {",".join(window_cols)}
+        FROM base
+        WINDOW {window_defs}
+        ORDER BY game_date, game_datetime, game_pk
+    """
+    con.register("pitcher_game_stats_src", pitcher_game_stats)
+    con.register("games_src", games)
+    try:
+        return con.execute(sql).df()
+    finally:
+        con.unregister("pitcher_game_stats_src")
+        con.unregister("games_src")

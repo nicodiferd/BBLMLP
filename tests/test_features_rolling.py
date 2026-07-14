@@ -2,7 +2,7 @@ import duckdb
 import pandas as pd
 import pytest
 
-from bblmlp.features.rolling import team_rolling_features
+from bblmlp.features.rolling import team_rolling_features, pitcher_rolling_features
 
 
 def _team_game_stats():
@@ -83,3 +83,73 @@ def test_gap_in_calendar_days_does_not_shrink_the_games_based_window():
     out = team_rolling_features(con, _team_game_stats(), _games())
     row = out[out["game_pk"] == 3].iloc[0]
     assert row["n_games_30"] == 2  # both prior games count, gap or not
+
+
+def _pitcher_game_stats():
+    # One pitcher (id 500), 3 starts.
+    return pd.DataFrame({
+        "game_pk": [1, 2, 3],
+        "season": [2024] * 3,
+        "pitcher": [500, 500, 500],
+        "is_starter": [True, True, True],
+        "pitches": [90, 95, 88],
+        "batters_faced": [24, 26, 23],
+        "avg_velo": [94.0, 93.5, 94.2],
+        "k": [6, 7, 5],
+        "bb": [2, 1, 3],
+        "whiffs": [10, 12, 9],
+    })
+
+
+def _pitcher_games():
+    return pd.DataFrame({
+        "game_pk": [1, 2, 3],
+        "game_date": ["2024-03-15", "2024-03-20", "2024-03-25"],
+        "game_datetime": ["2024-03-15T18:00", "2024-03-20T18:00", "2024-03-25T18:00"],
+    })
+
+
+def test_pitcher_first_start_has_no_history():
+    con = duckdb.connect(":memory:")
+    out = pitcher_rolling_features(con, _pitcher_game_stats(), _pitcher_games())
+    row = out[out["game_pk"] == 1].iloc[0]
+    assert row["n_games_10"] == 0
+    assert pd.isna(row["k_pct_10"])
+
+
+def test_pitcher_direct_sum_over_sum_reconstruction():
+    con = duckdb.connect(":memory:")
+    out = pitcher_rolling_features(con, _pitcher_game_stats(), _pitcher_games())
+    row = out[out["game_pk"] == 3].iloc[0]
+    # trailing window over starts 1,2
+    expected_k_pct = (6 + 7) / (24 + 26)
+    expected_swstr = (10 + 12) / (90 + 95)
+    assert row["k_pct_10"] == pytest.approx(expected_k_pct)
+    assert row["swstr_pct_10"] == pytest.approx(expected_swstr)
+    assert row["n_games_10"] == 2
+
+
+def test_pitcher_avg_velo_is_plain_trailing_mean():
+    con = duckdb.connect(":memory:")
+    out = pitcher_rolling_features(con, _pitcher_game_stats(), _pitcher_games())
+    row = out[out["game_pk"] == 3].iloc[0]
+    assert row["avg_velo_10"] == pytest.approx((94.0 + 93.5) / 2)
+
+
+def test_pitcher_is_starter_passes_through_unwindowed():
+    con = duckdb.connect(":memory:")
+    out = pitcher_rolling_features(con, _pitcher_game_stats(), _pitcher_games())
+    assert out["is_starter"].tolist() == [True, True, True]
+
+
+def test_pitcher_leakage_perturbing_own_stats_does_not_change_own_row():
+    con = duckdb.connect(":memory:")
+    baseline = pitcher_rolling_features(con, _pitcher_game_stats(), _pitcher_games())
+    baseline_row3 = baseline[baseline["game_pk"] == 3].iloc[0]
+
+    perturbed = _pitcher_game_stats()
+    perturbed.loc[perturbed["game_pk"] == 3, "k"] = 99
+    con2 = duckdb.connect(":memory:")
+    out = pitcher_rolling_features(con2, perturbed, _pitcher_games())
+    row3 = out[out["game_pk"] == 3].iloc[0]
+    assert row3["k_pct_10"] == pytest.approx(baseline_row3["k_pct_10"])
