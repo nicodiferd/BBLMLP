@@ -156,6 +156,13 @@ def build_features_cmd(season: int = typer.Option(..., "--season")) -> None:
 Season-partitioned via `replace_partition`, same idempotency guarantee as `build rollups` —
 re-running for a season replaces only that season's rows.
 
+**Cross-season loading, explicit:** the `games`/`team_game_stats`/`pitcher_game_stats` queries feeding
+the builders filter `season <= <year>`, not `season = <year>` — otherwise a 162-game team window could
+never fill within a single season (162 is a full season's worth of games), defeating §5's window
+definition. The builder outputs are filtered back down to `season == <year>` before the
+`replace_partition` calls above, so the write contract is unchanged: only the target season's rows in
+`team_features`/`pitcher_features` are ever replaced.
+
 ## 11. Done when
 
 - `team_features` and `pitcher_features` tables exist, populated via `bblmlp build features

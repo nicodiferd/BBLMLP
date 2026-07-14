@@ -119,3 +119,50 @@ def test_build_features_writes_team_and_pitcher_rows(tmp_path, monkeypatch):
     assert con.execute("SELECT COUNT(*) FROM team_features").fetchone()[0] == 2
     assert con.execute("SELECT COUNT(*) FROM pitcher_features").fetchone()[0] == 2
     con.close()
+
+
+def test_build_features_spans_season_boundary_but_writes_only_target_season(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from bblmlp.storage import connect, init_schema, replace_partition
+
+    warehouse = tmp_path / "w.duckdb"
+    con = connect(warehouse)
+    init_schema(con)
+
+    # Three 2023 games (prior-season history) plus one early 2024 game, all for the same team.
+    con.execute("INSERT INTO games (game_pk, season, game_date, game_datetime, home_team, away_team) VALUES "
+                "(1, 2023, '2023-09-01', '2023-09-01T18:00', 'NYY', 'BOS'), "
+                "(2, 2023, '2023-09-02', '2023-09-02T18:00', 'NYY', 'BOS'), "
+                "(3, 2023, '2023-09-03', '2023-09-03T18:00', 'NYY', 'BOS'), "
+                "(4, 2024, '2024-03-15', '2024-03-15T18:00', 'NYY', 'BOS')")
+
+    import pandas as pd
+    replace_partition(con, "team_game_stats", pd.DataFrame({
+        "game_pk": [1, 2, 3, 4], "season": [2023, 2023, 2023, 2024], "team": ["NYY"] * 4,
+        "pa": [36, 41, 38, 40], "xwoba": [0.30, 0.25, 0.28, 0.27],
+        "k_pct": [0.25, 0.17, 0.20, 0.19], "bb_pct": [0.05, 0.02, 0.03, 0.04],
+    }), "season")
+    con.close()
+
+    fake_settings = SimpleNamespace(data=SimpleNamespace(warehouse_path=warehouse))
+    monkeypatch.setattr("bblmlp.config.load_settings", lambda *a, **k: fake_settings)
+
+    result = runner.invoke(app, ["build", "features", "--season", "2024"])
+    assert result.exit_code == 0
+
+    con = connect(warehouse)
+    row = con.execute(
+        "SELECT n_games_30 FROM team_features WHERE game_pk = 4 AND team = 'NYY'"
+    ).fetchone()
+    assert row is not None
+    # The 2024 game's 30-game window must include the three prior 2023 games -- proof that
+    # trailing history genuinely spans the season boundary, not zero as the season-scoped bug
+    # would produce.
+    assert row[0] == 3
+
+    season_2023_rows = con.execute(
+        "SELECT COUNT(*) FROM team_features WHERE season = 2023"
+    ).fetchone()[0]
+    assert season_2023_rows == 0
+    con.close()
