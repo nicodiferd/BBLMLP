@@ -287,6 +287,35 @@ def build_park_reference_cmd() -> None:
     typer.echo(f"Wrote {n} park_reference rows")
 
 
+@build_app.command("features")
+def build_features_cmd(season: int = typer.Option(..., "--season")) -> None:
+    """Compute as-of rolling-window features (team + pitcher grain) for a season."""
+    from bblmlp.config import load_settings
+    from bblmlp.features.rolling import pitcher_rolling_features, team_rolling_features
+    from bblmlp.storage import connect, init_schema, replace_partition
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    games = con.execute(
+        "SELECT game_pk, game_date, game_datetime FROM games WHERE season = ?", [season]
+    ).df()
+    team_game_stats = con.execute(
+        "SELECT * FROM team_game_stats WHERE season = ?", [season]
+    ).df()
+    pitcher_game_stats = con.execute(
+        "SELECT * FROM pitcher_game_stats WHERE season = ?", [season]
+    ).df()
+    team_rows = replace_partition(
+        con, "team_features", team_rolling_features(con, team_game_stats, games), "season"
+    )
+    pitcher_rows = replace_partition(
+        con, "pitcher_features", pitcher_rolling_features(con, pitcher_game_stats, games), "season"
+    )
+    con.close()
+    typer.echo(f"Wrote {team_rows} team-feature rows and {pitcher_rows} pitcher-feature rows for {season}")
+
+
 @check_app.command("venues")
 def check_venues_cmd() -> None:
     """Report any games.venue string not yet mapped in park_reference (sponsor rename/relocation guard)."""
