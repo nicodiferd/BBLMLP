@@ -165,6 +165,16 @@ def test_init_schema_creates_pitcher_features_table(tmp_path):
     ]
 
 
+def test_init_schema_pitcher_game_stats_has_team_column(tmp_path):
+    con = connect(tmp_path / "w.duckdb")
+    init_schema(con)
+    cols = [r[0] for r in con.execute("DESCRIBE pitcher_game_stats").fetchall()]
+    assert cols == [
+        "game_pk", "pitcher", "season", "team", "pitches", "batters_faced",
+        "avg_velo", "xwoba_against", "k", "bb", "whiffs", "swstr_pct", "is_starter",
+    ]
+
+
 def test_init_schema_creates_kalshi_quotes_table(tmp_path):
     con = connect(tmp_path / "w.duckdb")
     init_schema(con)

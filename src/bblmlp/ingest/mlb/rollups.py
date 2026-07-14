@@ -23,6 +23,7 @@ def pitcher_game_stats(pitches: pd.DataFrame) -> pd.DataFrame:
     df["fld_team"] = _fielding_team(df)
     g = df.groupby(["game_pk", "season", "pitcher"], as_index=False)
     out = g.agg(
+        team=("fld_team", "first"),
         pitches=("pitch_number", "size"),
         batters_faced=("at_bat_number", "nunique"),
         avg_velo=("release_speed", "mean"),

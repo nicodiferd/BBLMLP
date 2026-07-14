@@ -30,3 +30,12 @@ def test_lineup_orders_batters_by_first_appearance():
     lo = lineup(_pitches())
     col = lo[lo["team"] == "COL"].sort_values("batting_order")
     assert list(col["batter"]) == [10, 11]  # COL bats in the Top half
+
+def test_pitcher_game_stats_includes_fielding_team():
+    out = pitcher_game_stats(_pitches())
+    # pitcher 500 fields for SF (throws in Top1, i.e. the home/fielding side when away bats)
+    # pitcher 900 fields for COL (throws in Bot1)
+    row_500 = out[out["pitcher"] == 500].iloc[0]
+    row_900 = out[out["pitcher"] == 900].iloc[0]
+    assert row_500["team"] == "SF"
+    assert row_900["team"] == "COL"

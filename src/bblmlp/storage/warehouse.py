@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS pitcher_game_stats (
     game_pk BIGINT,
     pitcher INTEGER,
     season INTEGER,
+    team VARCHAR,
     pitches INTEGER,
     batters_faced INTEGER,
     avg_velo DOUBLE,
