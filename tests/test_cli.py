@@ -168,6 +168,49 @@ def test_build_features_spans_season_boundary_but_writes_only_target_season(tmp_
     con.close()
 
 
+def test_build_features_writes_bullpen_rows(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from bblmlp.storage import connect, init_schema, replace_partition
+
+    warehouse = tmp_path / "w.duckdb"
+    con = connect(warehouse)
+    init_schema(con)
+
+    con.execute("INSERT INTO games (game_pk, season, game_date, game_datetime, home_team, away_team) VALUES "
+                "(1, 2024, '2024-03-15', '2024-03-15T18:00', 'NYY', 'BOS'), "
+                "(2, 2024, '2024-03-16', '2024-03-16T18:00', 'NYY', 'BOS')")
+
+    import pandas as pd
+    replace_partition(con, "team_game_stats", pd.DataFrame({
+        "game_pk": [1, 2], "season": [2024, 2024], "team": ["NYY", "NYY"],
+        "pa": [36, 41], "xwoba": [0.30, 0.25], "k_pct": [0.25, 0.17], "bb_pct": [0.05, 0.02],
+    }), "season")
+    replace_partition(con, "pitcher_game_stats", pd.DataFrame({
+        "game_pk": [1, 2], "season": [2024, 2024], "pitcher": [500, 500], "team": ["NYY", "NYY"],
+        "pitches": [90, 95], "batters_faced": [24, 26], "avg_velo": [94.0, 93.5],
+        "xwoba_against": [0.28, 0.30], "k": [6, 7], "bb": [2, 1], "whiffs": [10, 12],
+        "swstr_pct": [0.11, 0.13], "is_starter": [True, True],
+    }), "season")
+    replace_partition(con, "bullpen_game_stats", pd.DataFrame({
+        "game_pk": [1, 2], "season": [2024, 2024], "team": ["NYY", "NYY"],
+        "pitches": [35, 40], "batters_faced": [10, 11], "k": [3, 4], "bb": [1, 2],
+        "whiffs": [6, 7], "n_pitchers": [2, 3], "avg_velo": [94.3, 95.1],
+        "swstr_pct": [6 / 35, 7 / 40],
+    }), "season")
+    con.close()
+
+    fake_settings = SimpleNamespace(data=SimpleNamespace(warehouse_path=warehouse))
+    monkeypatch.setattr("bblmlp.config.load_settings", lambda *a, **k: fake_settings)
+
+    result = runner.invoke(app, ["build", "features", "--season", "2024"])
+    assert result.exit_code == 0
+
+    con = connect(warehouse)
+    assert con.execute("SELECT COUNT(*) FROM bullpen_features").fetchone()[0] == 2
+    con.close()
+
+
 def test_build_rollups_writes_bullpen_game_stats(tmp_path, monkeypatch):
     from types import SimpleNamespace
 

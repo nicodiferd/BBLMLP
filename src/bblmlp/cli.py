@@ -311,17 +311,19 @@ def build_park_reference_cmd() -> None:
 
 @build_app.command("features")
 def build_features_cmd(season: int = typer.Option(..., "--season")) -> None:
-    """Compute as-of rolling-window features (team + pitcher grain) for a season.
+    """Compute as-of rolling-window features (team + pitcher + bullpen grain) for a season.
 
-    Loads `season <= <year>` (not `season = <year>`) from `games`, `team_game_stats`, and
-    `pitcher_game_stats` so the trailing windows have real prior-season history to draw on --
-    a team's/pitcher's 162/75-game window can then genuinely span a season boundary instead of
-    being capped at whatever games exist so far in the target season alone. The builder outputs
-    are then filtered back down to just the target season before `replace_partition` writes, so
-    the command's write contract is unchanged: it only ever replaces the target season's rows in
-    `team_features`/`pitcher_features`, never prior seasons'.
+    Loads `season <= <year>` (not `season = <year>`) from `games`, `team_game_stats`,
+    `pitcher_game_stats`, and `bullpen_game_stats` so the trailing windows have real
+    prior-season history to draw on -- a team's/pitcher's/bullpen's 162/75/75-game window
+    can then genuinely span a season boundary instead of being capped at whatever games
+    exist so far in the target season alone. The builder outputs are then filtered back
+    down to just the target season before `replace_partition` writes, so the command's
+    write contract is unchanged: it only ever replaces the target season's rows in
+    `team_features`/`pitcher_features`/`bullpen_features`, never prior seasons'.
     """
     from bblmlp.config import load_settings
+    from bblmlp.features.bullpen import bullpen_rolling_features
     from bblmlp.features.rolling import pitcher_rolling_features, team_rolling_features
     from bblmlp.storage import connect, init_schema, replace_partition
 
@@ -337,14 +339,23 @@ def build_features_cmd(season: int = typer.Option(..., "--season")) -> None:
     pitcher_game_stats = con.execute(
         "SELECT * FROM pitcher_game_stats WHERE season <= ?", [season]
     ).df()
+    bullpen_game_stats = con.execute(
+        "SELECT * FROM bullpen_game_stats WHERE season <= ?", [season]
+    ).df()
     team_features = team_rolling_features(con, team_game_stats, games)
     team_features = team_features[team_features["season"] == season].reset_index(drop=True)
     pitcher_features = pitcher_rolling_features(con, pitcher_game_stats, games)
     pitcher_features = pitcher_features[pitcher_features["season"] == season].reset_index(drop=True)
+    bullpen_features = bullpen_rolling_features(con, bullpen_game_stats, games)
+    bullpen_features = bullpen_features[bullpen_features["season"] == season].reset_index(drop=True)
     team_rows = replace_partition(con, "team_features", team_features, "season")
     pitcher_rows = replace_partition(con, "pitcher_features", pitcher_features, "season")
+    bullpen_rows = replace_partition(con, "bullpen_features", bullpen_features, "season")
     con.close()
-    typer.echo(f"Wrote {team_rows} team-feature rows and {pitcher_rows} pitcher-feature rows for {season}")
+    typer.echo(
+        f"Wrote {team_rows} team-feature rows, {pitcher_rows} pitcher-feature rows, "
+        f"and {bullpen_rows} bullpen-feature rows for {season}"
+    )
 
 
 @check_app.command("venues")
