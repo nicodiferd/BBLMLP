@@ -52,10 +52,11 @@ game-winner model, and Kalshi integration are up next.
 ## Quickstart
 
 ```bash
-uv sync                          # install dependencies
-uv run bblmlp --help             # see available commands
-uv run bblmlp init-db            # create the local DuckDB warehouse
-uv run bblmlp ingest mlb --live  # pull today's schedule
+uv sync                                     # install dependencies
+alias bb='PYTHONPATH=src .venv/bin/python -m bblmlp.cli'
+bb --help                                   # see available commands
+bb init-db                                  # create the local DuckDB warehouse
+bb ingest mlb --live                        # pull today's schedule
 ```
 
 ## Disclaimer
