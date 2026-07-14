@@ -233,6 +233,28 @@ CREATE TABLE IF NOT EXISTS pitcher_features (
 );
 """
 
+KALSHI_QUOTES_DDL = """
+CREATE TABLE IF NOT EXISTS kalshi_quotes (
+    pulled_at TIMESTAMP NOT NULL,
+    event_ticker VARCHAR NOT NULL,
+    market_ticker VARCHAR NOT NULL,
+    game_pk BIGINT,
+    kalshi_team_code VARCHAR NOT NULL,
+    is_home BOOLEAN,
+    team_id INTEGER,
+    yes_bid DOUBLE,
+    yes_ask DOUBLE,
+    no_bid DOUBLE,
+    no_ask DOUBLE,
+    spread DOUBLE,
+    volume_fp DOUBLE,
+    open_interest_fp DOUBLE,
+    status VARCHAR,
+    yes_book_json VARCHAR,
+    no_book_json VARCHAR
+);
+"""
+
 _GAME_COLUMNS = [
     "game_pk", "season", "game_type", "game_date", "game_datetime", "home_team", "away_team",
     "home_team_id", "away_team_id", "home_probable_pitcher", "away_probable_pitcher",
@@ -259,6 +281,7 @@ def init_schema(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(PARK_REFERENCE_DDL)
     con.execute(TEAM_FEATURES_DDL)
     con.execute(PITCHER_FEATURES_DDL)
+    con.execute(KALSHI_QUOTES_DDL)
 
 
 def table_names(con: duckdb.DuckDBPyConnection) -> set[str]:
@@ -325,6 +348,24 @@ def replace_all(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFrame) ->
             raise
     finally:
         con.unregister("_df_all")
+    return len(df)
+
+
+def append_rows(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFrame) -> int:
+    """Insert df's rows into table without deleting anything.
+
+    For append-only tables where every write is new point-in-time data, never a
+    correction of a prior write (e.g. `kalshi_quotes` -- unlike every other table
+    in this warehouse, re-running a pull must NOT replace prior rows).
+    """
+    if df is None or len(df) == 0:
+        return 0
+    cols = ", ".join(_q(c) for c in df.columns)
+    con.register("_df_append", df)
+    try:
+        con.execute(f"INSERT INTO {_q(table)} ({cols}) SELECT {cols} FROM _df_append")
+    finally:
+        con.unregister("_df_append")
     return len(df)
 
 

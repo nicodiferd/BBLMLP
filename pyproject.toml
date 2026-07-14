@@ -12,6 +12,7 @@ dependencies = [
     "MLB-StatsAPI>=1.7",
     "pybaseball>=2.2",
     "curl-cffi>=0.15.0",
+    "httpx>=0.28.1",
 ]
 
 [project.scripts]

@@ -1,4 +1,5 @@
 from bblmlp.storage.warehouse import (
+    append_rows,
     connect,
     ensure_table_from_df,
     init_schema,
@@ -9,6 +10,7 @@ from bblmlp.storage.warehouse import (
 )
 
 __all__ = [
+    "append_rows",
     "connect",
     "ensure_table_from_df",
     "init_schema",

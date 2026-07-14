@@ -166,3 +166,8 @@ def test_build_features_spans_season_boundary_but_writes_only_target_season(tmp_
     ).fetchone()[0]
     assert season_2023_rows == 0
     con.close()
+
+
+def test_ingest_kalshi_command_exists():
+    result = runner.invoke(app, ["ingest", "kalshi", "--help"])
+    assert result.exit_code == 0

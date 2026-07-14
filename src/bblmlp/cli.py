@@ -159,6 +159,21 @@ def ingest_players() -> None:
     typer.echo(f"Loaded {n} players")
 
 
+@ingest_app.command("kalshi")
+def ingest_kalshi() -> None:
+    """Pull today's open Kalshi KXMLBGAME markets and snapshot prices."""
+    from bblmlp.config import load_settings
+    from bblmlp.ingest.kalshi.ingest import pull_and_snapshot
+    from bblmlp.storage import connect, init_schema
+
+    settings = load_settings()
+    con = connect(settings.data.warehouse_path)
+    init_schema(con)
+    n = pull_and_snapshot(con, settings.data.snapshot_dir)
+    con.close()
+    typer.echo(f"Wrote {n} Kalshi quote rows")
+
+
 @ingest_app.command("all")
 def ingest_all_cmd(
     date: str = typer.Option(

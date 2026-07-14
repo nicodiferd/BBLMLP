@@ -2,6 +2,7 @@ import duckdb
 import pytest
 
 from bblmlp.storage import (
+    append_rows,
     connect,
     ensure_table_from_df,
     init_schema,
@@ -162,3 +163,26 @@ def test_init_schema_creates_pitcher_features_table(tmp_path):
         "k_pct_35", "bb_pct_35", "swstr_pct_35", "avg_velo_35", "n_games_35",
         "k_pct_75", "bb_pct_75", "swstr_pct_75", "avg_velo_75", "n_games_75",
     ]
+
+
+def test_init_schema_creates_kalshi_quotes_table(tmp_path):
+    con = connect(tmp_path / "w.duckdb")
+    init_schema(con)
+    assert "kalshi_quotes" in table_names(con)
+
+
+def test_append_rows_accumulates_rather_than_replaces():
+    con = duckdb.connect(":memory:")
+    con.execute("CREATE TABLE q (pulled_at VARCHAR, v INTEGER)")
+    import pandas as pd
+    assert append_rows(con, "q", pd.DataFrame({"pulled_at": ["t1"], "v": [1]})) == 1
+    assert append_rows(con, "q", pd.DataFrame({"pulled_at": ["t2"], "v": [2]})) == 1
+    assert con.execute("SELECT count(*) FROM q").fetchone()[0] == 2  # both pulls kept
+
+
+def test_append_rows_empty_dataframe_is_a_noop():
+    con = duckdb.connect(":memory:")
+    con.execute("CREATE TABLE q (v INTEGER)")
+    import pandas as pd
+    assert append_rows(con, "q", pd.DataFrame({"v": []})) == 0
+    assert con.execute("SELECT count(*) FROM q").fetchone()[0] == 0
