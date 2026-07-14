@@ -268,9 +268,9 @@ def build_team_crosswalk_cmd(season: int = typer.Option(..., "--season")) -> Non
 
 @build_app.command("rollups")
 def build_rollups(season: int = typer.Option(..., "--season")) -> None:
-    """Compute Statcast-derived pitcher/team game rollups for a season."""
+    """Compute Statcast-derived pitcher/team/bullpen game rollups for a season."""
     from bblmlp.config import load_settings
-    from bblmlp.ingest.mlb.rollups import pitcher_game_stats, team_game_stats
+    from bblmlp.ingest.mlb.rollups import bullpen_game_stats, pitcher_game_stats, team_game_stats
     from bblmlp.storage import connect, init_schema, replace_partition
 
     settings = load_settings()
@@ -279,10 +279,17 @@ def build_rollups(season: int = typer.Option(..., "--season")) -> None:
     pitches = con.execute(
         "SELECT * FROM statcast_pitches WHERE season = ?", [season]
     ).df()
-    pitcher_rows = replace_partition(con, "pitcher_game_stats", pitcher_game_stats(pitches), "season")
+    pitcher_game_stats_df = pitcher_game_stats(pitches)
+    pitcher_rows = replace_partition(con, "pitcher_game_stats", pitcher_game_stats_df, "season")
     team_rows = replace_partition(con, "team_game_stats", team_game_stats(pitches), "season")
+    bullpen_rows = replace_partition(
+        con, "bullpen_game_stats", bullpen_game_stats(pitcher_game_stats_df), "season"
+    )
     con.close()
-    typer.echo(f"Wrote {pitcher_rows} pitcher-game rows and {team_rows} team-game rows for {season}")
+    typer.echo(
+        f"Wrote {pitcher_rows} pitcher-game rows, {team_rows} team-game rows, "
+        f"and {bullpen_rows} bullpen-game rows for {season}"
+    )
 
 
 @build_app.command("park-reference")

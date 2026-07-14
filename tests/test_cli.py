@@ -168,6 +168,52 @@ def test_build_features_spans_season_boundary_but_writes_only_target_season(tmp_
     con.close()
 
 
+def test_build_rollups_writes_bullpen_game_stats(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from bblmlp.storage import connect, init_schema, replace_partition
+
+    warehouse = tmp_path / "w.duckdb"
+    con = connect(warehouse)
+    init_schema(con)
+
+    import pandas as pd
+    # One game, one team, one starter + one reliever, minimal statcast_pitches fixture.
+    # All rows are "Top" half-innings: SF (home) fields/pitches, COL (away) bats -- so
+    # both pitcher 501 (inning 1) and pitcher 502 (inning 8) resolve to team "SF" per
+    # _fielding_team's Top-half = home_team rule. A "Bot" row here would put pitcher 502
+    # on COL instead, since _fielding_team flips to away_team in the bottom half.
+    pitches = pd.DataFrame({
+        "game_pk": [1, 1, 1, 1],
+        "season": [2024] * 4,
+        "inning": [1, 1, 8, 8],
+        "inning_topbot": ["Top", "Top", "Top", "Top"],
+        "home_team": ["SF"] * 4, "away_team": ["COL"] * 4,
+        "pitcher": [501, 501, 502, 502],
+        "batter": [10, 11, 12, 13],
+        "at_bat_number": [1, 2, 20, 21],
+        "pitch_number": [1, 1, 1, 1],
+        "events": ["strikeout", "walk", "strikeout", "field_out"],
+        "description": ["swinging_strike", "ball", "swinging_strike", "hit_into_play"],
+        "estimated_woba_using_speedangle": [0.0, 0.0, 0.0, 0.1],
+        "release_speed": [95, 96, 97, 96],
+    })
+    replace_partition(con, "statcast_pitches", pitches, "season")
+    con.close()
+
+    fake_settings = SimpleNamespace(data=SimpleNamespace(warehouse_path=warehouse))
+    monkeypatch.setattr("bblmlp.config.load_settings", lambda *a, **k: fake_settings)
+
+    result = runner.invoke(app, ["build", "rollups", "--season", "2024"])
+    assert result.exit_code == 0
+
+    con = connect(warehouse)
+    row = con.execute("SELECT * FROM bullpen_game_stats WHERE game_pk = 1").df().iloc[0]
+    assert row["team"] == "SF"
+    assert row["n_pitchers"] == 1  # only pitcher 502 is a reliever (501 is the starter)
+    con.close()
+
+
 def test_ingest_kalshi_command_exists():
     result = runner.invoke(app, ["ingest", "kalshi", "--help"])
     assert result.exit_code == 0
