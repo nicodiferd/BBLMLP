@@ -186,6 +186,19 @@ def test_init_schema_creates_bullpen_game_stats_table(tmp_path):
     ]
 
 
+def test_init_schema_creates_bullpen_features_table(tmp_path):
+    con = connect(tmp_path / "w.duckdb")
+    init_schema(con)
+    assert "bullpen_features" in table_names(con)
+    cols = [r[0] for r in con.execute("DESCRIBE bullpen_features").fetchall()]
+    assert cols == [
+        "game_pk", "season", "team",
+        "k_pct_10", "bb_pct_10", "swstr_pct_10", "avg_velo_10", "n_games_10",
+        "k_pct_35", "bb_pct_35", "swstr_pct_35", "avg_velo_35", "n_games_35",
+        "k_pct_75", "bb_pct_75", "swstr_pct_75", "avg_velo_75", "n_games_75",
+    ]
+
+
 def test_init_schema_creates_kalshi_quotes_table(tmp_path):
     con = connect(tmp_path / "w.duckdb")
     init_schema(con)

@@ -250,6 +250,29 @@ CREATE TABLE IF NOT EXISTS pitcher_features (
 );
 """
 
+BULLPEN_FEATURES_DDL = """
+CREATE TABLE IF NOT EXISTS bullpen_features (
+    game_pk BIGINT,
+    season INTEGER,
+    team VARCHAR,
+    k_pct_10 DOUBLE,
+    bb_pct_10 DOUBLE,
+    swstr_pct_10 DOUBLE,
+    avg_velo_10 DOUBLE,
+    n_games_10 INTEGER,
+    k_pct_35 DOUBLE,
+    bb_pct_35 DOUBLE,
+    swstr_pct_35 DOUBLE,
+    avg_velo_35 DOUBLE,
+    n_games_35 INTEGER,
+    k_pct_75 DOUBLE,
+    bb_pct_75 DOUBLE,
+    swstr_pct_75 DOUBLE,
+    avg_velo_75 DOUBLE,
+    n_games_75 INTEGER
+);
+"""
+
 KALSHI_QUOTES_DDL = """
 CREATE TABLE IF NOT EXISTS kalshi_quotes (
     pulled_at TIMESTAMP NOT NULL,
@@ -299,6 +322,7 @@ def init_schema(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(PARK_REFERENCE_DDL)
     con.execute(TEAM_FEATURES_DDL)
     con.execute(PITCHER_FEATURES_DDL)
+    con.execute(BULLPEN_FEATURES_DDL)
     con.execute(KALSHI_QUOTES_DDL)
 
 
