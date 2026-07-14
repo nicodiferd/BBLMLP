@@ -100,3 +100,40 @@ def test_bullpen_doubleheader_games_ordered_by_datetime_not_just_date():
 
     row_opener = out[out["game_pk"] == 21].iloc[0]
     assert row_opener["n_games_10"] == 0
+
+
+def test_bullpen_windows_are_isolated_per_team():
+    # Two teams (SF, COL) interleaved by date: SF g1, COL g1, SF g2, COL g2, SF g3.
+    # COL's rates are deliberately far from SF's, so a PARTITION BY team
+    # regression (window computed across all teams by date order) would pull
+    # COL's games into SF's game-3 trailing window and change the result.
+    bullpen_game_stats = pd.DataFrame({
+        "game_pk": [1, 2, 3, 4, 5],
+        "season": [2024] * 5,
+        "team": ["SF", "COL", "SF", "COL", "SF"],
+        "pitches": [35, 500, 40, 450, 30],
+        "batters_faced": [10, 300, 11, 250, 9],
+        "k": [3, 100, 4, 90, 2],
+        "bb": [1, 50, 2, 40, 1],
+        "whiffs": [6, 200, 7, 180, 5],
+        "n_pitchers": [2, 5, 3, 4, 2],
+        "avg_velo": [94.3, 80.0, 95.1, 82.0, 93.8],
+        "swstr_pct": [6 / 35, 200 / 500, 7 / 40, 180 / 450, 5 / 30],
+    })
+    games = pd.DataFrame({
+        "game_pk": [1, 2, 3, 4, 5],
+        "game_date": ["2024-04-01", "2024-04-02", "2024-04-03", "2024-04-04", "2024-04-05"],
+        "game_datetime": [
+            "2024-04-01T18:00", "2024-04-02T18:00", "2024-04-03T18:00",
+            "2024-04-04T18:00", "2024-04-05T18:00",
+        ],
+    })
+    con = duckdb.connect(":memory:")
+    out = bullpen_rolling_features(con, bullpen_game_stats, games)
+
+    row_sf3 = out[out["game_pk"] == 5].iloc[0]
+    # trailing window over SF's own prior games only (pk 1, pk 3) -- COL's
+    # pk 2/pk 4 rows must not leak in even though they fall between them by date.
+    assert row_sf3["n_games_10"] == 2
+    assert row_sf3["k_pct_10"] == pytest.approx((3 + 4) / (10 + 11))
+    assert row_sf3["swstr_pct_10"] == pytest.approx((6 + 7) / (35 + 40))

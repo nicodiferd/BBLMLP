@@ -56,7 +56,7 @@ def ingest_all(con, settings, *, fetchers: dict) -> dict[str, int]:
                         from statcast_pitches already in the warehouse, not fetched)
     """
     from bblmlp.ingest.mlb.players import normalize_players
-    from bblmlp.ingest.mlb.rollups import pitcher_game_stats, team_game_stats
+    from bblmlp.ingest.mlb.rollups import bullpen_game_stats, pitcher_game_stats, team_game_stats
     from bblmlp.ingest.mlb.standings import normalize_standings
     from bblmlp.ingest.mlb.statcast import normalize_statcast, write_statcast
     from bblmlp.ingest.mlb.team_crosswalk import build_team_crosswalk
@@ -142,8 +142,12 @@ def ingest_all(con, settings, *, fetchers: dict) -> dict[str, int]:
             pitches = con.execute(
                 "SELECT * FROM statcast_pitches WHERE season = ?", [season]
             ).df()
-            total += replace_partition(con, "pitcher_game_stats", pitcher_game_stats(pitches), "season")
+            pitcher_game_stats_df = pitcher_game_stats(pitches)
+            total += replace_partition(con, "pitcher_game_stats", pitcher_game_stats_df, "season")
             total += replace_partition(con, "team_game_stats", team_game_stats(pitches), "season")
+            total += replace_partition(
+                con, "bullpen_game_stats", bullpen_game_stats(pitcher_game_stats_df), "season"
+            )
         counts["rollups"] = total
 
     return counts

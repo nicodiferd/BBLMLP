@@ -74,18 +74,21 @@ def test_ingest_all_runs_rollups_when_statcast_and_rollups_keys_present(tmp_path
 
     def fake_statcast(season):
         return pd.DataFrame({
-            "game_pk": [1, 1, 1, 1],
-            "season": [season] * 4,
-            "inning_topbot": ["Top", "Top", "Bot", "Bot"],
-            "home_team": ["SF"] * 4, "away_team": ["COL"] * 4,
-            "pitcher": [500, 500, 900, 900],
-            "batter": [10, 11, 20, 21],
-            "at_bat_number": [1, 2, 3, 4],
-            "pitch_number": [1, 1, 1, 1],
-            "events": ["strikeout", "walk", "single", "field_out"],
-            "description": ["swinging_strike", "ball", "hit_into_play", "hit_into_play"],
-            "estimated_woba_using_speedangle": [0.0, 0.0, 0.9, 0.1],
-            "release_speed": [95, 96, 93, 92],
+            # pitcher 500 starts for SF (Top, first at_bat_number); 501 relieves
+            # for SF later (Top, later at_bat_number) so bullpen_game_stats has
+            # a non-starter row to aggregate.
+            "game_pk": [1, 1, 1, 1, 1],
+            "season": [season] * 5,
+            "inning_topbot": ["Top", "Top", "Bot", "Bot", "Top"],
+            "home_team": ["SF"] * 5, "away_team": ["COL"] * 5,
+            "pitcher": [500, 500, 900, 900, 501],
+            "batter": [10, 11, 20, 21, 12],
+            "at_bat_number": [1, 2, 3, 4, 5],
+            "pitch_number": [1, 1, 1, 1, 1],
+            "events": ["strikeout", "walk", "single", "field_out", "strikeout"],
+            "description": ["swinging_strike", "ball", "hit_into_play", "hit_into_play", "swinging_strike"],
+            "estimated_woba_using_speedangle": [0.0, 0.0, 0.9, 0.1, 0.0],
+            "release_speed": [95, 96, 93, 92, 97],
         })
 
     fetchers = {
@@ -104,6 +107,11 @@ def test_ingest_all_runs_rollups_when_statcast_and_rollups_keys_present(tmp_path
     assert counts["rollups"] >= 1
     assert con.execute("SELECT count(*) FROM pitcher_game_stats").fetchone()[0] >= 1
     assert con.execute("SELECT count(*) FROM team_game_stats").fetchone()[0] >= 1
+    assert con.execute("SELECT count(*) FROM bullpen_game_stats").fetchone()[0] >= 1
+    bullpen_row = con.execute(
+        "SELECT team, n_pitchers FROM bullpen_game_stats WHERE game_pk = 1"
+    ).fetchone()
+    assert bullpen_row == ("SF", 1)  # only reliever 501; starter 500 excluded
 
 
 def test_ingest_all_builds_team_crosswalk_when_keys_present(tmp_path):
