@@ -153,3 +153,56 @@ def test_pitcher_leakage_perturbing_own_stats_does_not_change_own_row():
     out = pitcher_rolling_features(con2, perturbed, _pitcher_games())
     row3 = out[out["game_pk"] == 3].iloc[0]
     assert row3["k_pct_10"] == pytest.approx(baseline_row3["k_pct_10"])
+
+
+def test_team_doubleheader_games_ordered_by_datetime_not_just_date():
+    # Two games on the SAME game_date (a doubleheader) -- the earlier
+    # game_datetime must be treated as happening first.
+    team_game_stats = pd.DataFrame({
+        "game_pk": [10, 11, 12],
+        "season": [2024] * 3,
+        "team": ["NYY"] * 3,
+        "pa": [36, 34, 38],
+        "xwoba": [0.30, 0.35, 0.28],
+        "k_pct": [0.20, 0.30, 0.25],
+        "bb_pct": [0.05, 0.06, 0.07],
+    })
+    games = pd.DataFrame({
+        "game_pk": [10, 11, 12],
+        "game_date": ["2024-05-01", "2024-05-01", "2024-05-02"],  # 10, 11 = doubleheader
+        "game_datetime": ["2024-05-01T13:00", "2024-05-01T19:00", "2024-05-02T18:00"],
+    })
+    con = duckdb.connect(":memory:")
+    out = team_rolling_features(con, team_game_stats, games)
+
+    row_g2 = out[out["game_pk"] == 11].iloc[0]  # game 2 of the doubleheader
+    assert row_g2["n_games_30"] == 1
+    assert row_g2["k_pct_30"] == pytest.approx(0.20)  # sees only game 10 (the day's opener)
+
+    row_next_day = out[out["game_pk"] == 12].iloc[0]
+    assert row_next_day["n_games_30"] == 2  # sees both games 10 and 11
+
+
+def test_pitcher_doubleheader_starts_ordered_by_datetime_not_just_date():
+    pitcher_game_stats = pd.DataFrame({
+        "game_pk": [20, 21],
+        "season": [2024] * 2,
+        "pitcher": [700, 700],
+        "is_starter": [True, True],
+        "pitches": [90, 85],
+        "batters_faced": [24, 22],
+        "avg_velo": [93.0, 92.0],
+        "k": [5, 6],
+        "bb": [2, 1],
+        "whiffs": [8, 9],
+    })
+    games = pd.DataFrame({
+        "game_pk": [20, 21],
+        "game_date": ["2024-05-01", "2024-05-01"],
+        "game_datetime": ["2024-05-01T13:00", "2024-05-01T19:00"],
+    })
+    con = duckdb.connect(":memory:")
+    out = pitcher_rolling_features(con, pitcher_game_stats, games)
+    row_g2 = out[out["game_pk"] == 21].iloc[0]
+    assert row_g2["n_games_10"] == 1
+    assert row_g2["k_pct_10"] == pytest.approx(5 / 24)
