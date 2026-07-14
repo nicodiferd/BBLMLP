@@ -141,6 +141,22 @@ CREATE TABLE IF NOT EXISTS team_game_stats (
 );
 """
 
+BULLPEN_GAME_DDL = """
+CREATE TABLE IF NOT EXISTS bullpen_game_stats (
+    game_pk BIGINT,
+    season INTEGER,
+    team VARCHAR,
+    pitches INTEGER,
+    batters_faced INTEGER,
+    k INTEGER,
+    bb INTEGER,
+    whiffs INTEGER,
+    n_pitchers INTEGER,
+    avg_velo DOUBLE,
+    swstr_pct DOUBLE
+);
+"""
+
 STANDINGS_DDL = """
 CREATE TABLE IF NOT EXISTS standings (
     season INTEGER,
@@ -276,6 +292,7 @@ def init_schema(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(PLAYER_IDS_DDL)
     con.execute(PITCHER_GAME_DDL)
     con.execute(TEAM_GAME_DDL)
+    con.execute(BULLPEN_GAME_DDL)
     con.execute(STANDINGS_DDL)
     con.execute(LIVE_LINEUPS_DDL)
     con.execute(TEAM_CROSSWALK_DDL)

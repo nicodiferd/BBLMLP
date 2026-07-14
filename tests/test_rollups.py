@@ -1,5 +1,6 @@
 import pandas as pd
-from bblmlp.ingest.mlb.rollups import pitcher_game_stats, lineup
+import pytest
+from bblmlp.ingest.mlb.rollups import pitcher_game_stats, lineup, bullpen_game_stats
 
 
 def _pitches():
@@ -39,3 +40,51 @@ def test_pitcher_game_stats_includes_fielding_team():
     row_900 = out[out["pitcher"] == 900].iloc[0]
     assert row_500["team"] == "SF"
     assert row_900["team"] == "COL"
+
+
+def _pitcher_game_stats_for_bullpen():
+    # One game (game_pk=1), SF's staff: one starter (501) + two relievers (502, 503).
+    return pd.DataFrame({
+        "game_pk": [1, 1, 1],
+        "season": [2024] * 3,
+        "pitcher": [501, 502, 503],
+        "team": ["SF", "SF", "SF"],
+        "pitches": [90, 20, 15],
+        "batters_faced": [24, 6, 4],
+        "avg_velo": [94.0, 96.0, 92.0],
+        "xwoba_against": [0.28, 0.20, 0.35],
+        "k": [6, 2, 1],
+        "bb": [2, 0, 1],
+        "whiffs": [10, 4, 2],
+        "swstr_pct": [10 / 90, 4 / 20, 2 / 15],
+        "is_starter": [True, False, False],
+    })
+
+
+def test_bullpen_game_stats_excludes_the_starter():
+    out = bullpen_game_stats(_pitcher_game_stats_for_bullpen())
+    row = out[(out["game_pk"] == 1) & (out["team"] == "SF")].iloc[0]
+    assert row["pitches"] == 35       # 20 + 15, starter's 90 excluded
+    assert row["batters_faced"] == 10  # 6 + 4
+    assert row["k"] == 3               # 2 + 1
+    assert row["bb"] == 1              # 0 + 1
+    assert row["whiffs"] == 6          # 4 + 2
+
+
+def test_bullpen_game_stats_n_pitchers_counts_distinct_relievers():
+    out = bullpen_game_stats(_pitcher_game_stats_for_bullpen())
+    row = out[(out["game_pk"] == 1) & (out["team"] == "SF")].iloc[0]
+    assert row["n_pitchers"] == 2
+
+
+def test_bullpen_game_stats_swstr_pct_is_exact_sum_reconstruction():
+    out = bullpen_game_stats(_pitcher_game_stats_for_bullpen())
+    row = out[(out["game_pk"] == 1) & (out["team"] == "SF")].iloc[0]
+    assert row["swstr_pct"] == pytest.approx(6 / 35)  # sum(whiffs)/sum(pitches), not mean of rates
+
+
+def test_bullpen_game_stats_avg_velo_is_pitch_weighted():
+    out = bullpen_game_stats(_pitcher_game_stats_for_bullpen())
+    row = out[(out["game_pk"] == 1) & (out["team"] == "SF")].iloc[0]
+    expected = (96.0 * 20 + 92.0 * 15) / (20 + 15)
+    assert row["avg_velo"] == pytest.approx(expected)

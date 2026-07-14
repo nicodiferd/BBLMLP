@@ -48,6 +48,34 @@ def pitcher_game_stats(pitches: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def bullpen_game_stats(pitcher_game_stats: pd.DataFrame) -> pd.DataFrame:
+    """Exact per-game bullpen aggregation -- summed raw counts from relief
+    appearances (`is_starter == False`), never a subtraction of starter
+    totals from team totals. `avg_velo` is a pitch-weighted mean of each
+    reliever's own (already-averaged) `avg_velo`, the same documented
+    approximation pattern as team-grain `xwoba` in `features/rolling.py`.
+    """
+    df = pitcher_game_stats[~pitcher_game_stats["is_starter"]].copy()
+    g = df.groupby(["game_pk", "season", "team"], as_index=False)
+    out = g.agg(
+        pitches=("pitches", "sum"),
+        batters_faced=("batters_faced", "sum"),
+        k=("k", "sum"),
+        bb=("bb", "sum"),
+        whiffs=("whiffs", "sum"),
+        n_pitchers=("pitcher", "nunique"),
+    )
+    weighted_velo = (
+        df.assign(_w=df["avg_velo"] * df["pitches"])
+        .groupby(["game_pk", "season", "team"])["_w"]
+        .sum()
+    )
+    out = out.set_index(["game_pk", "season", "team"])
+    out["avg_velo"] = weighted_velo / out["pitches"]
+    out["swstr_pct"] = out["whiffs"] / out["pitches"]
+    return out.reset_index()
+
+
 def lineup(pitches: pd.DataFrame) -> pd.DataFrame:
     df = pitches.copy()
     df["team"] = _batting_team(df)

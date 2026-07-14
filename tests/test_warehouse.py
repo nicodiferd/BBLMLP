@@ -175,6 +175,17 @@ def test_init_schema_pitcher_game_stats_has_team_column(tmp_path):
     ]
 
 
+def test_init_schema_creates_bullpen_game_stats_table(tmp_path):
+    con = connect(tmp_path / "w.duckdb")
+    init_schema(con)
+    assert "bullpen_game_stats" in table_names(con)
+    cols = [r[0] for r in con.execute("DESCRIBE bullpen_game_stats").fetchall()]
+    assert cols == [
+        "game_pk", "season", "team", "pitches", "batters_faced",
+        "k", "bb", "whiffs", "n_pitchers", "avg_velo", "swstr_pct",
+    ]
+
+
 def test_init_schema_creates_kalshi_quotes_table(tmp_path):
     con = connect(tmp_path / "w.duckdb")
     init_schema(con)
