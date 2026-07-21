@@ -27,3 +27,6 @@ venv/
 
 # Git worktrees used for isolated feature-branch execution
 .worktrees/
+
+# Internal working notes — not for the public-facing repo
+CLAUDE.md
